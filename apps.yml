@@ -1,0 +1,27 @@
+apps:
+  - name: Steam
+    command: steam
+    args:
+      - "steam://open/bigpicture"
+    icon: fa5b.steam
+    color: "#1b2838"
+
+  - name: Heroic
+    command: heroic
+    args:
+      - "--fullscreen"
+    icon: fa5s.gamepad
+    color: "#c0392b"
+
+  - name: YouTube
+    command: /home/xis/stuff/yt/yt.sh
+    args: []
+    icon: fa5b.youtube
+    color: "#c0392b"
+
+  - name: Firefox
+    command: firefox
+    args:
+      - "--kiosk"
+    icon: fa5b.firefox-browser
+    color: "#e67e22"
