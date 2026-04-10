@@ -44,6 +44,7 @@ class GamepadWatcher(QObject):
         super().__init__(parent)
         self._handlers: list[Callable[[str], None]] = []
         self._lock = threading.Lock()
+        self._suppress_uinput: bool = False   # True gdy Desktop jest aktywny
         self._raw.connect(self._dispatch)
         threading.Thread(target=self._loop, daemon=True, name="gamepad-watcher").start()
 
@@ -54,15 +55,18 @@ class GamepadWatcher(QObject):
             if handler in self._handlers:
                 self._handlers.remove(handler)
             self._handlers.append(handler)
+            self._suppress_uinput = True   # nasz UI jest aktywny → blokuj klawisze do pada
 
     def pop_handler(self, handler: Callable[[str], None]) -> None:
         with self._lock:
             if handler in self._handlers:
                 self._handlers.remove(handler)
+            self._suppress_uinput = bool(self._handlers)  # False gdy stos pusty (apka w kontroli)
 
     def inject(self, event: str) -> None:
         """Wstrzyknij event nawigacyjny (np. z klawiatury) do aktywnego handlera."""
         self._dispatch(event)
+
 
     # ── Wewnętrzne ─────────────────────────────────────────────────────────
 
@@ -134,9 +138,14 @@ class GamepadWatcher(QObject):
                                 self.btn_mode_pressed.emit()
 
                         else:
-                            # Przekaż do wirtualnego pada
+                            # Przekaż do wirtualnego pada (chyba że Desktop jest aktywny)
                             if uinput:
-                                uinput.write(ev.type, ev.code, ev.value)
+                                suppress_now = False
+                                if ev.type == ecodes.EV_KEY:
+                                    with self._lock:
+                                        suppress_now = self._suppress_uinput
+                                if not suppress_now:
+                                    uinput.write(ev.type, ev.code, ev.value)
                             self._translate(ev, held, stick, pending)
 
                 except OSError:
