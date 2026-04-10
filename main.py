@@ -104,10 +104,9 @@ def main() -> None:
             overlay.show_overlay()
         else:
             # Pobierz aktywne okno PRZED pokazaniem overlay – to okno gry/aplikacji
-            prev_win    = _get_active_xwindow()
-            win_title   = _get_xwindow_title(prev_win) if prev_win else None
-            app_name    = apps[running_idx]["name"]
-            return_label = f"  Wróć do {win_title}" if win_title else f"  Wróć do {app_name}"
+            prev_win  = _get_active_xwindow()
+            win_title = _get_xwindow_title(prev_win) if prev_win else None
+            app_name  = apps[running_idx]["name"]
 
             logger.debug("BTN_MODE: aktywne okno=%s (%s)", prev_win, win_title)
 
@@ -120,14 +119,14 @@ def main() -> None:
                     ),
                 },
                 {
-                    "label":    return_label,
-                    "icon":     "fa5s.arrow-left",
-                    "callback": lambda win=prev_win: _activate_xwindow(win) if win else None,
-                },
-                {
                     "label":    f"  Zamknij {app_name}",
                     "icon":     "fa5s.times-circle",
                     "callback": desktop.request_close_running_app,
+                },
+                {
+                    "label":    "  Anuluj",
+                    "icon":     "fa5s.times",
+                    "callback": lambda win=prev_win: _activate_xwindow(win) if win else None,
                 },
             ]
             overlay.show_overlay(extra_items=extra)

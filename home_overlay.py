@@ -2,7 +2,7 @@ import logging
 import subprocess
 
 from PyQt6.QtWidgets import (
-    QWidget, QPushButton, QVBoxLayout, QLabel, QFrame,
+    QWidget, QPushButton, QVBoxLayout, QLabel,
     QGraphicsDropShadowEffect,
 )
 from PyQt6.QtCore import Qt
@@ -120,17 +120,9 @@ class HomeOverlay(QWidget):
                 item.widget().deleteLater()
         self._buttons.clear()
 
-        self._items = list(extra_items) + list(_STATIC_ITEMS)
-        n_extra = len(extra_items)
+        self._items = list(extra_items) if extra_items else list(_STATIC_ITEMS)
 
-        for i, item in enumerate(self._items):
-            if i == n_extra and n_extra > 0:
-                sep = QFrame()
-                sep.setFrameShape(QFrame.Shape.HLine)
-                sep.setStyleSheet("color: #3b4252; background: #3b4252; margin: 4px 0;")
-                sep.setFixedHeight(1)
-                self._card_layout.addWidget(sep)
-
+        for item in self._items:
             btn = QPushButton(item["label"])
             btn.setMinimumHeight(62)
             btn.setIcon(qta.icon(item["icon"], color="white"))
