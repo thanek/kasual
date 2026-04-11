@@ -1,9 +1,9 @@
 import configparser
 import logging
-import math
 import os
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QApplication, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QTimer, QSize, QEvent, pyqtSignal
-from PyQt6.QtGui import QPainter, QRadialGradient, QColor, QIcon, QKeyEvent
+from PyQt6.QtGui import QPainter, QColor, QIcon, QKeyEvent
 
 import qtawesome as qta
 
@@ -23,6 +23,91 @@ from window_manager import KWinWindowManager
 from styles import Styles
 
 logger = logging.getLogger(__name__)
+
+
+def _wallpaper_package_image(directory: str) -> str | None:
+    """
+    Szuka najlepszego obrazu w paczce tapety KDE (katalog contents/images/).
+    Zwraca ścieżkę do pliku o największej rozdzielczości lub None.
+    """
+    images_dir = os.path.join(directory, 'contents', 'images')
+    if not os.path.isdir(images_dir):
+        return None
+
+    best: tuple[int, str] = (0, '')
+    for fname in os.listdir(images_dir):
+        fpath = os.path.join(images_dir, fname)
+        if not os.path.isfile(fpath):
+            continue
+        # Nazwy plików mają format WxH.ext — parsuj rozdzielczość
+        name = os.path.splitext(fname)[0]
+        if 'x' in name:
+            try:
+                w, h = name.split('x', 1)
+                pixels = int(w) * int(h)
+                if pixels > best[0]:
+                    best = (pixels, fpath)
+            except ValueError:
+                pass
+        elif best[0] == 0:
+            best = (1, fpath)   # fallback: jakikolwiek plik
+
+    return best[1] or None
+
+
+def _load_kde_wallpaper() -> 'QPixmap | None':
+    """
+    Czyta ścieżkę tapety z plasma-org.kde.plasma.desktop-appletsrc
+    i zwraca QPixmap lub None gdy nie udało się znaleźć pliku.
+
+    Obsługuje zarówno bezpośrednie ścieżki do pliku jak i paczki tapety
+    KDE (katalog z contents/images/WxH.ext).
+    """
+    from PyQt6.QtGui import QPixmap
+
+    cfg_path = Path.home() / '.config' / 'plasma-org.kde.plasma.desktop-appletsrc'
+    if not cfg_path.exists():
+        logger.warning('Nie znaleziono pliku konfiguracji Plasma: %s', cfg_path)
+        return None
+
+    cp = configparser.RawConfigParser()
+    cp.read(str(cfg_path), encoding='utf-8')
+
+    for section in cp.sections():
+        if '][Wallpaper][' not in section:
+            continue
+        raw = cp.get(section, 'Image', fallback=None)
+        if not raw:
+            continue
+
+        # Usuń opcjonalne cudzysłowy i prefiks file://
+        raw = raw.strip("'\"")
+        path = raw[7:] if raw.startswith('file://') else raw
+
+        # Paczka tapety (katalog) → znajdź najlepszy obraz w contents/images/
+        if os.path.isdir(path):
+            resolved = _wallpaper_package_image(path)
+            if resolved:
+                path = resolved
+            else:
+                logger.debug('Brak obrazów w paczce: %s', path)
+                continue
+
+        if not os.path.isfile(path):
+            logger.debug('Pomijam (nie plik): %s', path)
+            continue
+
+        px = QPixmap(path)
+        if px.isNull():
+            logger.debug('Nie udało się wczytać: %s', path)
+            continue
+
+        logger.info('Tapeta KDE: %s', path)
+        return px
+
+    logger.warning('Nie znaleziono żadnej tapety w konfiguracji Plasma')
+    return None
+
 
 # ── Rozwiązywanie ikon aplikacji ───────────────────────────────────────────────
 
@@ -231,10 +316,7 @@ class Desktop(QWidget):
         self._status_timer.timeout.connect(self._refresh_tile_status)
         self._status_timer.start(500)
 
-        self._bg_offset = 0.0
-        self._bg_timer = QTimer(self)
-        self._bg_timer.timeout.connect(self._tick_bg)
-        self._bg_timer.start(33)
+        self._wallpaper: 'QPixmap | None' = _load_kde_wallpaper()
 
         self._app_manager.app_finished.connect(self._on_app_finished)
         self._wm.windows_updated.connect(self._rebuild_dynamic_tiles)
@@ -299,32 +381,19 @@ class Desktop(QWidget):
             gamepad=self._gamepad,
         )
 
-    # ── Animacja tła ───────────────────────────────────────────────────────
-
-    def _tick_bg(self) -> None:
-        self._bg_offset += 0.0007
-        self.update()
-
     def paintEvent(self, _) -> None:
         painter = QPainter(self)
-        w, h = self.width(), self.height()
-        t = self._bg_offset
-
-        painter.fillRect(self.rect(), QColor("#0b140e"))
-
-        cx1 = w * (0.25 + 0.18 * math.sin(t * 0.7))
-        cy1 = h * (0.45 + 0.12 * math.cos(t * 0.5))
-        g1 = QRadialGradient(cx1, cy1, w * 0.55)
-        c1 = QColor("#0d5f70"); c1.setAlpha(100)
-        g1.setColorAt(0.0, c1); g1.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(self.rect(), g1)
-
-        cx2 = w * (0.75 + 0.15 * math.cos(t * 0.4))
-        cy2 = h * (0.5  + 0.18 * math.sin(t * 0.6))
-        g2 = QRadialGradient(cx2, cy2, w * 0.45)
-        c2 = QColor("#40106a"); c2.setAlpha(85)
-        g2.setColorAt(0.0, c2); g2.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.fillRect(self.rect(), g2)
+        if self._wallpaper and not self._wallpaper.isNull():
+            scaled = self._wallpaper.scaled(
+                self.size(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = (self.width()  - scaled.width())  // 2
+            y = (self.height() - scaled.height()) // 2
+            painter.drawPixmap(x, y, scaled)
+        else:
+            painter.fillRect(self.rect(), QColor("#0b140e"))
 
     # ── Top bar ────────────────────────────────────────────────────────────
 
@@ -648,7 +717,7 @@ class Desktop(QWidget):
                 logger.info("Uruchamiam aplikację %d", idx)
                 self._gamepad.pop_handler(self._handle_pad)
                 self._app_manager.launch(idx, self._apps[idx])
-                self.hide()
+                # self.hide()
 
         else:
             # Kafel dynamiczny (aktualnie otwarte okno)

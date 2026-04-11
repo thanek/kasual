@@ -21,7 +21,7 @@ _STATIC_ITEMS = [
     {"label": "  Zrestartuj komputer",  "icon": "fa5s.redo-alt",  "action": "restart"},
     {"label": "  Zamknij system",       "icon": "fa5s.power-off", "action": "shutdown"},
     {"label": "  Anuluj",               "icon": "fa5s.times",     "action": "cancel"},
-    {"label": "  Wyjdź z Pulpitu",      "icon": "fa5s.power-off",      "action": "exit_app"}
+    {"label": "  Wyjdź z Pulpitu",      "icon": "fa5s.power-off", "action": "hide_desktop"}
 ]
 
 
@@ -197,7 +197,7 @@ class HomeOverlay(QWidget):
         elif action == "shutdown":
             self.hide_overlay()
             self._ask_system_action("Czy na pewno chcesz wyłączyć komputer?", ["systemctl", "poweroff"])
-        elif action == "exit_app":
+        elif action == "hide_desktop":
             self.hide_overlay()
             self._ask_before_quit("Czy na pewno chcesz wyjść?")
 

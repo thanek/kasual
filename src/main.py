@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def _setup_logging() -> None:
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format="%(asctime)s  [%(name)-22s]  %(levelname)-8s  %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[logging.StreamHandler()],
@@ -126,14 +126,14 @@ def main() -> None:
 
     tray_menu = QMenu()
     show_action = tray_menu.addAction("Pokaż pulpit")
-    show_action.triggered.connect(lambda: (desktop.showFullScreen(), desktop.activateWindow()))
+    show_action.triggered.connect(lambda: (desktop.show_desktop()))
     tray_menu.addSeparator()
     quit_action = tray_menu.addAction("Zamknij")
     quit_action.triggered.connect(app.quit)
 
     tray.setContextMenu(tray_menu)
     tray.activated.connect(
-        lambda reason: (desktop.showFullScreen(), desktop.activateWindow())
+        lambda reason: (desktop.show_desktop())
         if reason == QSystemTrayIcon.ActivationReason.Trigger
         else None
     )
