@@ -3,13 +3,13 @@ KWin D-Bus window management — Wayland-native, KDE Plasma 6.
 
 Plasma 6 nie ma activeWindow() / activateWindow() w /KWin.
 Zamiast tego:
-  - aktywne okno:  queryWindowInfo() → pole 'uuid'
+  - aktywne okno:  pole 'active' zbierane przez _LIST_SCRIPT
   - aktywacja:     jednorazowy skrypt KWin (workspace.activeWindow = ...)
-  - lista okien:   skrypt KWin (workspace.windowList()) + callDB-Bus adaptor
+  - lista okien:   skrypt KWin (workspace.windowList()) + ExportAllSlots
 
-Adaptor używa pyqtClassInfo('D-Bus Interface', ...) → eksportuje
-interfejs 'org.consoledesktop.WindowList' z metodą receive(),
-którą wywołuje callDBus() wewnątrz skryptu KWin.
+_WindowListHost rejestruje slot receive() bezpośrednio przez ExportAllSlots
+(bez oddzielnego adaptor). Skrypt wywołuje callDBus z pustym interfejsem —
+Qt route'uje do pierwszego pasującego slotu po nazwie metody.
 """
 
 import json
@@ -17,9 +17,9 @@ import logging
 import os
 import tempfile
 
-from PyQt6.QtCore import QObject, QTimer, pyqtClassInfo, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtDBus import (
-    QDBusAbstractAdaptor, QDBusConnection, QDBusInterface, QDBusMessage,
+    QDBusConnection, QDBusInterface, QDBusMessage,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ _LIST_SCRIPT = """\
     var out = [];
     for (var i = 0; i < ws.length; i++) {
         var w = ws[i];
-        if (w.normalWindow && !w.desktopWindow && !w.dock) {
+        if (!w.skipTaskbar && w.normalWindow && !w.desktopWindow && !w.dock) {
             out.push({
                 id:     String(w.internalId),
                 title:  String(w.caption),
@@ -54,7 +54,7 @@ _LIST_SCRIPT = """\
         }
     }
     callDBus('org.consoledesktop.WindowList', '/WindowList',
-             'org.consoledesktop.WindowList', 'receive',
+             'local._WindowListHost', 'receive',
              JSON.stringify(out));
 })();
 """
@@ -74,20 +74,45 @@ _ACTIVATE_SCRIPT = """\
 }})();
 """
 
+_CLOSE_SCRIPT = """\
+(function () {{
+    var target = '{uuid}';
+    var ws = workspace.windowList();
+    for (var i = 0; i < ws.length; i++) {{
+        if (String(ws[i].internalId) === target) {{
+            ws[i].closeWindow();
+            break;
+        }}
+    }}
+}})();
+"""
+
 _SCRIPT_TIMEOUT_MS = 5_000
 
 
-@pyqtClassInfo('D-Bus Interface', _WL_IFACE)
-class _WindowListAdaptor(QDBusAbstractAdaptor):
+class _WindowListHost(QObject):
     """
-    D-Bus adaptor przyjmujący wyniki od skryptu KWin.
-    pyqtClassInfo ustawia nazwę interfejsu na 'org.consoledesktop.WindowList',
-    co musi się zgadzać z pierwszym argumentem callDBus() w skrypcie JS.
+    Odbiera wyniki skryptu KWin przez D-Bus.
+
+    Slot receive() jest rejestrowany przez ExportAllSlots — nie wymaga
+    QDBusAbstractAdaptor. Skrypt KWin wywołuje callDBus z pustym interfejsem,
+    Qt route'uje po nazwie metody.
     """
 
-    def __init__(self, parent: QObject) -> None:
-        super().__init__(parent)
-        self.setAutoRelaySignals(False)
+    def __init__(self) -> None:
+        super().__init__()
+        self._callbacks: list = []
+
+        bus = QDBusConnection.sessionBus()
+        ok_obj = bus.registerObject(
+            _WL_PATH, self,
+            QDBusConnection.RegisterOption.ExportAllSlots,
+        )
+        ok_svc = bus.registerService(_WL_SVC)
+        if not ok_obj or not ok_svc:
+            logger.error('D-Bus rejestracja nieudana: obj=%s svc=%s', ok_obj, ok_svc)
+        else:
+            logger.info('D-Bus WindowList zarejestrowany (%s %s)', _WL_SVC, _WL_PATH)
 
     @pyqtSlot(str)
     def receive(self, json_str: str) -> None:
@@ -97,25 +122,7 @@ class _WindowListAdaptor(QDBusAbstractAdaptor):
         except Exception as exc:
             logger.warning('WindowList JSON błąd: %s', exc)
             data = []
-        self.parent()._on_receive(data)      # type: ignore[attr-defined]
-
-
-class _WindowListHost(QObject):
-    """Obiekt-host rejestrujący adaptor i zbierający callbacki."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._adaptor  = _WindowListAdaptor(self)   # child → auto-export przez Qt
-        self._callbacks: list = []
-
-        bus = QDBusConnection.sessionBus()
-        # Default ExportAdaptors – Qt znajdzie _WindowListAdaptor jako dziecko
-        ok_obj = bus.registerObject(_WL_PATH, self)
-        ok_svc = bus.registerService(_WL_SVC)
-        if not ok_obj or not ok_svc:
-            logger.error('D-Bus rejestracja nieudana: obj=%s svc=%s', ok_obj, ok_svc)
-        else:
-            logger.info('D-Bus WindowList zarejestrowany (%s)', _WL_SVC)
+        self._on_receive(data)
 
     def add_callback(self, cb) -> None:
         self._callbacks.append(cb)
@@ -195,6 +202,11 @@ class KWinWindowManager(QObject):
         """
         script = _ACTIVATE_SCRIPT.format(uuid=window_id.replace("'", "\\'"))
         self._run_fire_and_forget(script, tag='activate')
+
+    def close_window(self, window_id: str) -> None:
+        """Zamyka okno przez jednorazowy skrypt KWin (closeWindow())."""
+        script = _CLOSE_SCRIPT.format(uuid=window_id.replace("'", "\\'"))
+        self._run_fire_and_forget(script, tag='close')
 
     def window_exists(self, window_id: str) -> bool:
         return window_id in self._cache
@@ -279,6 +291,9 @@ class KWinWindowManager(QObject):
     def _load_script(self, path: str, plugin: str) -> bool:
         reply = self._scripting.call('loadScript', path, plugin)
         if reply.type() == QDBusMessage.MessageType.ReplyMessage:
+            # W KWin 6 start() uruchamia skrypty załadowane po poprzednim start().
+            # Bez tego wywołania skrypt jest załadowany ale nigdy nie wykonany.
+            self._scripting.call('start')
             logger.debug('loadScript OK: %s', plugin)
             return True
         logger.error('loadScript nieudane (%s): %s', plugin, reply.errorMessage())

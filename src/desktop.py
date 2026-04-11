@@ -1,5 +1,6 @@
 import logging
 import math
+import os
 import subprocess
 
 from PyQt6.QtWidgets import (
@@ -118,9 +119,9 @@ class Desktop(QWidget):
         self._topbar_index   = 0
         self._confirm_dialog = None
 
-        # Dynamiczne kafle: lista (window_id, AppTile)
-        self._dynamic_tiles:  list[tuple[str, AppTile]] = []
-        self._dyn_separator:  QWidget | None            = None
+        # Dynamiczne kafle: lista (window_id, title, AppTile)
+        self._dynamic_tiles:  list[tuple[str, str, AppTile]] = []
+        self._dyn_separator:  QWidget | None                 = None
 
         self.setWindowTitle("Console Desktop")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -331,9 +332,13 @@ class Desktop(QWidget):
     # ── Dynamiczne kafle (aktualnie otwarte okna) ──────────────────────────
 
     def _rebuild_dynamic_tiles(self, windows: list[dict]) -> None:
-        """Przebudowuje sekcję dynamicznych kafli na podstawie listy z KWin."""
+        """Przebudowuje sekcję dynamicznych kafli na podstawie listy z KWin.
+
+        Filtruje okna należące do aplikacji uruchomionej przez AppManager —
+        są już reprezentowane przez kafel statyczny.
+        """
         # Usuń stare dynamiczne kafle i separator
-        for _, tile in self._dynamic_tiles:
+        for _, _, tile in self._dynamic_tiles:
             self._tile_layout.removeWidget(tile)
             tile.deleteLater()
         self._dynamic_tiles.clear()
@@ -343,7 +348,23 @@ class Desktop(QWidget):
             self._dyn_separator.deleteLater()
             self._dyn_separator = None
 
-        if not windows:
+        # Wyklucz okna należące do grupy procesów uruchomionej aplikacji.
+        # start_new_session=True → pgid dziecka == jego pid, więc wszystkie
+        # procesy potomne (np. przeglądarka uruchomiona przez skrypt) mają
+        # ten sam pgid i też są filtrowane.
+        running_pid = self._app_manager.running_pid()
+
+        def _in_running_group(pid: int) -> bool:
+            if running_pid is None or pid == 0:
+                return False
+            try:
+                return os.getpgid(pid) == running_pid
+            except OSError:
+                return False
+
+        extern_windows = [w for w in windows if not _in_running_group(w.get('pid', 0))]
+
+        if not extern_windows:
             self._clamp_tile_index()
             self._update_focus()
             return
@@ -352,24 +373,25 @@ class Desktop(QWidget):
         sep = QWidget()
         sep.setFixedSize(2, TILE_H - 24)
         sep.setStyleSheet("background: #3b4252;")
-        # Wstaw przed stretch (ostatni element w layoucie)
         insert_pos = self._tile_layout.count() - 1
         self._tile_layout.insertWidget(insert_pos, sep)
         self._dyn_separator = sep
 
-        for w in windows:
-            title = w['title']
-            if len(title) > _DYN_TILE_MAX_TITLE:
-                title = title[:_DYN_TILE_MAX_TITLE - 1] + '…'
+        for w in extern_windows:
+            full_title = w['title']
+            display_title = full_title
+            if len(display_title) > _DYN_TILE_MAX_TITLE:
+                display_title = display_title[:_DYN_TILE_MAX_TITLE - 1] + '…'
             tile = AppTile(
-                name=title,
+                name=display_title,
                 icon_name='fa5s.window-maximize',
                 color='#2e3440',
             )
+            tile.set_running(True)   # okno istnieje → aplikacja działa
             win_id = w['id']
             tile.clicked.connect(lambda wid=win_id: self._on_dynamic_tile_clicked(wid))
             self._tile_layout.insertWidget(self._tile_layout.count() - 1, tile)
-            self._dynamic_tiles.append((win_id, tile))
+            self._dynamic_tiles.append((win_id, full_title, tile))
 
         self._clamp_tile_index()
         self._update_focus()
@@ -399,7 +421,7 @@ class Desktop(QWidget):
         for i, tile in enumerate(self._tiles):
             tile.set_selected(in_tiles and i == self._tile_index)
 
-        for i, (_, tile) in enumerate(self._dynamic_tiles):
+        for i, (_, _, tile) in enumerate(self._dynamic_tiles):
             tile.set_selected(in_tiles and (n_static + i) == self._tile_index)
 
         for i, btn in enumerate(self._topbar_buttons):
@@ -409,7 +431,7 @@ class Desktop(QWidget):
                 btn.setStyleSheet(Styles.topbar_normal(TOPBAR_ACTIONS[i]["color"]))
 
         if in_tiles:
-            all_tiles: list[AppTile] = self._tiles + [t for _, t in self._dynamic_tiles]
+            all_tiles: list[AppTile] = self._tiles + [t for _, _, t in self._dynamic_tiles]
             if 0 <= self._tile_index < len(all_tiles):
                 self._scroll.ensureWidgetVisible(all_tiles[self._tile_index])
 
@@ -456,8 +478,7 @@ class Desktop(QWidget):
             elif event == "select":
                 self._on_tile_clicked(self._tile_index)
             elif event == "close":
-                if self._app_manager.is_running():
-                    self.request_close_running_app()
+                self._close_focused_tile()
 
         elif self._focus_mode == "topbar":
             if event == "left":
@@ -495,7 +516,7 @@ class Desktop(QWidget):
             # Kafel dynamiczny (aktualnie otwarte okno)
             dyn_idx = idx - n_static
             if dyn_idx < len(self._dynamic_tiles):
-                win_id, _ = self._dynamic_tiles[dyn_idx]
+                win_id, _, _ = self._dynamic_tiles[dyn_idx]
                 self._on_dynamic_tile_clicked(win_id)
 
     def _on_app_finished(self, idx: int) -> None:
@@ -511,6 +532,38 @@ class Desktop(QWidget):
         self.activateWindow()
 
     # ── Zamknięcie aplikacji ───────────────────────────────────────────────
+
+    def _close_focused_tile(self) -> None:
+        """Zamknij aplikację reprezentowaną przez aktualnie fokusowany kafel."""
+        idx = self._tile_index
+        n_static = len(self._tiles)
+
+        if idx < n_static:
+            # Kafel statyczny: zamknij tylko gdy to właśnie ta aplikacja działa
+            if self._app_manager.running_idx() == idx:
+                self.request_close_running_app()
+        else:
+            # Kafel dynamiczny (okno KDE)
+            dyn_idx = idx - n_static
+            if dyn_idx < len(self._dynamic_tiles):
+                win_id, title, _ = self._dynamic_tiles[dyn_idx]
+                self._request_close_kwin_window(win_id, title)
+
+    def _request_close_kwin_window(self, win_id: str, title: str) -> None:
+        if self._confirm_dialog is not None:
+            return
+        display = title if len(title) <= 40 else title[:39] + '…'
+        self._confirm_dialog = ConfirmDialog(
+            question=f'Czy na pewno chcesz zamknąć\n"{display}"?',
+            on_confirmed=lambda: self._do_close_kwin_window(win_id),
+            on_cancelled=self._on_close_cancelled,
+            gamepad=self._gamepad,
+        )
+
+    def _do_close_kwin_window(self, win_id: str) -> None:
+        self._confirm_dialog = None
+        self._wm.close_window(win_id)
+        QTimer.singleShot(1000, self._wm.refresh_now)
 
     def _on_close_cancelled(self) -> None:
         self._confirm_dialog = None

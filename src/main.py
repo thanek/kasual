@@ -71,14 +71,10 @@ def main() -> None:
         running_idx = desktop.app_manager.running_idx()
         if running_idx is None:
             overlay.show_overlay(
-                on_cancel=lambda: (desktop.showFullScreen(), desktop.activateWindow()),
+                on_cancel=desktop.show_desktop,
             )
         else:
-            # Zapamiętaj aktywne okno zanim overlay przykryje ekran
-            prev_win = wm.get_active_window_id()
             app_name = apps[running_idx]["name"]
-
-            logger.debug("BTN_MODE: aktywne okno=%s", prev_win)
 
             extra = [
                 {
@@ -94,7 +90,7 @@ def main() -> None:
                 {
                     "label":    "  Anuluj",
                     "icon":     "fa5s.times",
-                    "callback": lambda win=prev_win: wm.activate_window(win) if win else None,
+                    "callback": desktop.show_desktop,
                 },
             ]
             overlay.show_overlay(extra_items=extra)

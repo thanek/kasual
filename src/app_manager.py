@@ -62,6 +62,11 @@ class AppManager(QObject):
     def running_idx(self) -> int | None:
         return self._running_idx if self.is_running() else None
 
+    def running_pid(self) -> int | None:
+        if self._process is not None and self._process.poll() is None:
+            return self._process.pid
+        return None
+
     # ── Wewnętrzne ─────────────────────────────────────────────────────────
 
     def _killpg(self, sig: signal.Signals) -> None:

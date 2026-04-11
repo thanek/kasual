@@ -118,6 +118,12 @@ class HomeOverlay(QWidget):
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
 
+    def _dismiss(self) -> None:
+        """Zamknij overlay i przywróć poprzedni kontekst (on_cancel)."""
+        self.hide_overlay()
+        if self._on_cancel:
+            self._on_cancel()
+
     # ── Budowanie menu ─────────────────────────────────────────────────────
 
     def _rebuild_buttons(self, extra_items: list[dict]) -> None:
@@ -150,7 +156,7 @@ class HomeOverlay(QWidget):
         elif event == "select":
             self._activate(self._index)
         elif event in ("cancel", "close"):
-            self.hide_overlay()
+            self._dismiss()
 
     # ── Klawiatura ─────────────────────────────────────────────────────────
 
@@ -165,7 +171,7 @@ class HomeOverlay(QWidget):
         elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._activate(self._index)
         elif key in (Qt.Key.Key_Escape, Qt.Key.Key_F1):
-            self.hide_overlay()
+            self._dismiss()
 
     # ── Akcje ──────────────────────────────────────────────────────────────
 
