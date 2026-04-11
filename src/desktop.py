@@ -1,7 +1,9 @@
+import configparser
 import logging
 import math
 import os
 import subprocess
+from functools import lru_cache
 
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
@@ -21,6 +23,92 @@ from window_manager import KWinWindowManager
 from styles import Styles
 
 logger = logging.getLogger(__name__)
+
+# ── Rozwiązywanie ikon aplikacji ───────────────────────────────────────────────
+
+def _xdg_app_dirs() -> list[str]:
+    home   = os.environ.get('XDG_DATA_HOME', os.path.expanduser('~/.local/share'))
+    system = os.environ.get('XDG_DATA_DIRS', '/usr/local/share:/usr/share').split(':')
+    extra  = [
+        '/var/lib/flatpak/exports/share',
+        os.path.expanduser('~/.local/share/flatpak/exports/share'),
+    ]
+    return [os.path.join(d, 'applications') for d in [home] + system + extra]
+
+
+def _icon_name_from_desktop(path: str) -> str | None:
+    try:
+        cp = configparser.RawConfigParser()
+        cp.read(path, encoding='utf-8')
+        return cp.get('Desktop Entry', 'Icon', fallback=None)
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=128)
+def _resolve_window_name(desktop_file: str, resource_class: str) -> str | None:
+    """Zwraca oficjalną nazwę aplikacji (Name=) z pliku .desktop lub None."""
+    candidates: list[str] = []
+    if desktop_file:
+        candidates.append(desktop_file if desktop_file.endswith('.desktop')
+                          else desktop_file + '.desktop')
+    if resource_class and resource_class != desktop_file:
+        candidates.append(resource_class + '.desktop')
+
+    for apps_dir in _xdg_app_dirs():
+        for name in candidates:
+            path = os.path.join(apps_dir, name)
+            if os.path.isfile(path):
+                try:
+                    cp = configparser.RawConfigParser()
+                    cp.read(path, encoding='utf-8')
+                    result = cp.get('Desktop Entry', 'Name', fallback=None)
+                    if result:
+                        return result
+                except Exception:
+                    pass
+    return None
+
+
+@lru_cache(maxsize=128)
+def _resolve_window_icon(desktop_file: str, resource_class: str):
+    """Zwraca QIcon dla okna KWin lub None. Wynik jest cache'owany."""
+    from PyQt6.QtGui import QIcon
+
+    # Kandydaci na nazwy pliku .desktop (bez rozszerzenia → dodajemy)
+    candidates: list[str] = []
+    if desktop_file:
+        candidates.append(desktop_file if desktop_file.endswith('.desktop')
+                          else desktop_file + '.desktop')
+    if resource_class and resource_class != desktop_file:
+        candidates.append(resource_class + '.desktop')
+
+    icon_name: str | None = None
+    for apps_dir in _xdg_app_dirs():
+        for name in candidates:
+            path = os.path.join(apps_dir, name)
+            if os.path.isfile(path):
+                icon_name = _icon_name_from_desktop(path)
+                if icon_name:
+                    break
+        if icon_name:
+            break
+
+    # Fallback: spróbuj klasy zasobu jako nazwy ikony motywu
+    if not icon_name:
+        icon_name = resource_class or desktop_file
+
+    if not icon_name:
+        return None
+
+    # Absolutna ścieżka do pliku?
+    if os.path.isabs(icon_name):
+        icon = QIcon(icon_name)
+        return icon if not icon.isNull() else None
+
+    icon = QIcon.fromTheme(icon_name)
+    return icon if not icon.isNull() else None
+
 
 DAYS_PL = [
     "Poniedziałek", "Wtorek", "Środa", "Czwartek",
@@ -49,7 +137,7 @@ class AppTile(QWidget):
 
     clicked = pyqtSignal()
 
-    def __init__(self, name: str, icon_name: str, color: str, parent=None):
+    def __init__(self, name: str, icon_name: str, color: str, qicon=None, parent=None):
         super().__init__(parent)
         self.setFixedSize(TILE_W, TILE_H)
         self._color = color
@@ -58,10 +146,13 @@ class AppTile(QWidget):
         self._btn.setFixedSize(TILE_W, TILE_H)
         self._btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self._btn.setIconSize(QSize(72, 72))
-        try:
-            self._btn.setIcon(qta.icon(icon_name, color="white"))
-        except Exception:
-            self._btn.setIcon(qta.icon("fa5s.desktop", color="white"))
+        if qicon is not None and not qicon.isNull():
+            self._btn.setIcon(qicon)
+        else:
+            try:
+                self._btn.setIcon(qta.icon(icon_name, color="white"))
+            except Exception:
+                self._btn.setIcon(qta.icon("fa5s.desktop", color="white"))
         self._btn.setText(name)
         self._btn.setStyleSheet(Styles.tile_normal(color))
         self._btn.clicked.connect(self.clicked)
@@ -398,13 +489,24 @@ class Desktop(QWidget):
 
         for w in extern_windows:
             full_title = w['title']
-            display_title = full_title
-            if len(display_title) > _DYN_TILE_MAX_TITLE:
-                display_title = display_title[:_DYN_TILE_MAX_TITLE - 1] + '…'
+            app_name   = _resolve_window_name(
+                w.get('desktopFile', ''), w.get('resourceClass', '')
+            )
+            if app_name and app_name != full_title:
+                combined = f"{app_name} ({full_title})"
+            else:
+                combined = app_name or full_title
+            display_title = (combined[:_DYN_TILE_MAX_TITLE - 1] + '…'
+                             if len(combined) > _DYN_TILE_MAX_TITLE else combined)
+            app_icon = _resolve_window_icon(
+                w.get('desktopFile', ''),
+                w.get('resourceClass', ''),
+            )
             tile = AppTile(
                 name=display_title,
                 icon_name='fa5s.window-maximize',
                 color='#2e3440',
+                qicon=app_icon,
             )
             tile.set_running(True)   # okno istnieje → aplikacja działa
             win_id = w['id']

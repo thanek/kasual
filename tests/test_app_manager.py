@@ -215,3 +215,23 @@ class TestForceKill:
         with patch("app_manager.os.killpg") as mock_killpg:
             am._force_kill()
         mock_killpg.assert_not_called()
+
+
+# ── running_pid ────────────────────────────────────────────────────────────────
+
+class TestRunningPid:
+    def test_returns_pid_when_process_alive(self, qapp):
+        am = _make_manager()
+        am._process = _running_proc(pid=4242)
+        am._running_idx = 0
+        assert am.running_pid() == 4242
+
+    def test_returns_none_when_no_process(self, qapp):
+        am = _make_manager()
+        assert am.running_pid() is None
+
+    def test_returns_none_when_process_exited(self, qapp):
+        am = _make_manager()
+        am._process = _exited_proc()
+        am._running_idx = 0
+        assert am.running_pid() is None

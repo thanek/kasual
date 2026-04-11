@@ -46,10 +46,12 @@ _LIST_SCRIPT = """\
         var w = ws[i];
         if (!w.skipTaskbar && w.normalWindow && !w.desktopWindow && !w.dock) {
             out.push({
-                id:     String(w.internalId),
-                title:  String(w.caption),
-                pid:    parseInt(w.pid) || 0,
-                active: String(w.internalId) === awId
+                id:            String(w.internalId),
+                title:         String(w.caption),
+                pid:           parseInt(w.pid) || 0,
+                active:        String(w.internalId) === awId,
+                desktopFile:   String(w.desktopFileName || ''),
+                resourceClass: String(w.resourceClass   || '')
             });
         }
     }

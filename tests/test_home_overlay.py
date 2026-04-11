@@ -169,3 +169,29 @@ class TestActivate:
         with patch.object(overlay, "_ask_system_action"):
             overlay._handle_pad("select")
         assert not overlay.isVisible()
+
+
+# ── _dismiss ──────────────────────────────────────────────────────────────────
+
+class TestDismiss:
+    def test_pad_cancel_calls_on_cancel(self, mock_gamepad):
+        called = []
+        overlay = _shown(mock_gamepad, on_cancel=lambda: called.append(True))
+        overlay._handle_pad("cancel")
+        assert called == [True]
+
+    def test_pad_close_calls_on_cancel(self, mock_gamepad):
+        called = []
+        overlay = _shown(mock_gamepad, on_cancel=lambda: called.append(True))
+        overlay._handle_pad("close")
+        assert called == [True]
+
+    def test_pad_cancel_hides_overlay(self, mock_gamepad):
+        overlay = _shown(mock_gamepad, on_cancel=lambda: None)
+        overlay._handle_pad("cancel")
+        assert not overlay.isVisible()
+
+    def test_dismiss_without_on_cancel_does_not_raise(self, mock_gamepad):
+        overlay = _shown(mock_gamepad)   # on_cancel=None
+        overlay._handle_pad("cancel")   # nie powinno rzucać
+        assert not overlay.isVisible()
