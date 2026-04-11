@@ -122,6 +122,8 @@ class Desktop(QWidget):
         # Dynamiczne kafle: lista (window_id, title, AppTile)
         self._dynamic_tiles:  list[tuple[str, str, AppTile]] = []
         self._dyn_separator:  QWidget | None                 = None
+        # Aktualnie aktywne okno dynamiczne (ustawione po kliknięciu kafla spoza apps.yml)
+        self._dyn_active:     tuple[str, str] | None         = None  # (win_id, title)
 
         self.setWindowTitle("Console Desktop")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -159,10 +161,27 @@ class Desktop(QWidget):
 
     def show_desktop(self) -> None:
         """Pokaż pulpit nie przerywając działającej aplikacji."""
+        self._dyn_active = None
         self._gamepad.push_handler(self._handle_pad)
         self._wm.refresh_now()
         self.showFullScreen()
         self.activateWindow()
+
+    @property
+    def active_dynamic_window(self) -> tuple[str, str] | None:
+        """Zwraca (win_id, title) aktywnego okna dynamicznego lub None."""
+        return self._dyn_active
+
+    def restore_dynamic_window(self) -> None:
+        """Wróć do aktywnego okna dynamicznego (aktywuj je w KWin)."""
+        if self._dyn_active:
+            self._wm.activate_window(self._dyn_active[0])
+
+    def request_close_dynamic_window(self) -> None:
+        """Pokaż dialog zamknięcia aktywnego okna dynamicznego."""
+        if self._dyn_active:
+            win_id, title = self._dyn_active
+            self._request_close_kwin_window(win_id, title)
 
     def restore_app(self) -> None:
         """Wróć do działającej aplikacji – ukryj Desktop, oddaj pada aplikacji."""
@@ -397,7 +416,19 @@ class Desktop(QWidget):
         self._update_focus()
         logger.debug('Dynamiczne kafle: %d', len(self._dynamic_tiles))
 
+        # Jeśli aktywne okno dynamiczne znikło (zamknięte przez samą aplikację) → Pulpit
+        if self._dyn_active is not None:
+            active_ids = {wid for wid, _, _ in self._dynamic_tiles}
+            if self._dyn_active[0] not in active_ids:
+                self._dyn_active = None
+                if not self.isVisible():
+                    self._gamepad.push_handler(self._handle_pad)
+                    self.showFullScreen()
+                    self.activateWindow()
+
     def _on_dynamic_tile_clicked(self, window_id: str) -> None:
+        title = next((t for wid, t, _ in self._dynamic_tiles if wid == window_id), window_id)
+        self._dyn_active = (window_id, title)
         self._wm.activate_window(window_id)
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
@@ -556,14 +587,24 @@ class Desktop(QWidget):
         self._confirm_dialog = ConfirmDialog(
             question=f'Czy na pewno chcesz zamknąć\n"{display}"?',
             on_confirmed=lambda: self._do_close_kwin_window(win_id),
-            on_cancelled=self._on_close_cancelled,
+            on_cancelled=self._on_kwin_close_cancelled,
             gamepad=self._gamepad,
         )
 
     def _do_close_kwin_window(self, win_id: str) -> None:
         self._confirm_dialog = None
+        self._dyn_active = None
         self._wm.close_window(win_id)
         QTimer.singleShot(1000, self._wm.refresh_now)
+        self._gamepad.push_handler(self._handle_pad)
+        self.showFullScreen()
+        self.activateWindow()
+
+    def _on_kwin_close_cancelled(self) -> None:
+        self._confirm_dialog = None
+        self._gamepad.push_handler(self._handle_pad)
+        self.showFullScreen()
+        self.activateWindow()
 
     def _on_close_cancelled(self) -> None:
         self._confirm_dialog = None

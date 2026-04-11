@@ -69,31 +69,42 @@ def main() -> None:
 
     def _on_btn_mode() -> None:
         running_idx = desktop.app_manager.running_idx()
-        if running_idx is None:
-            overlay.show_overlay(
-                on_cancel=desktop.show_desktop,
-            )
-        else:
-            app_name = apps[running_idx]["name"]
+        dyn         = desktop.active_dynamic_window
 
-            extra = [
-                {
-                    "label":    "  Powrót do Pulpitu",
-                    "icon":     "fa5s.home",
-                    "callback": desktop.show_desktop,
-                },
-                {
-                    "label":    f"  Zamknij {app_name}",
-                    "icon":     "fa5s.times-circle",
-                    "callback": desktop.request_close_running_app,
-                },
-                {
-                    "label":    "  Anuluj",
-                    "icon":     "fa5s.times",
-                    "callback": desktop.show_desktop,
-                },
-            ]
-            overlay.show_overlay(extra_items=extra)
+        if running_idx is None and dyn is None:
+            # Jesteśmy na Pulpicie → menu systemowe
+            overlay.show_overlay(on_cancel=desktop.show_desktop)
+            return
+
+        # Jakaś aplikacja jest aktywna → menu kontekstowe
+        if running_idx is not None:
+            title    = apps[running_idx]["name"]
+            close_cb = desktop.request_close_running_app
+            cancel_cb = desktop.restore_dynamic_window   # no-op gdy brak dyn_active
+        else:
+            _, title  = dyn
+            close_cb  = desktop.request_close_dynamic_window
+            cancel_cb = desktop.restore_dynamic_window
+
+        label = title if len(title) <= 22 else title[:21] + '…'
+        extra = [
+            {
+                "label":    "  Powrót do Pulpitu",
+                "icon":     "fa5s.home",
+                "callback": desktop.show_desktop,
+            },
+            {
+                "label":    f"  Zamknij {label}",
+                "icon":     "fa5s.times-circle",
+                "callback": close_cb,
+            },
+            {
+                "label":    "  Anuluj",
+                "icon":     "fa5s.times",
+                "callback": cancel_cb,
+            },
+        ]
+        overlay.show_overlay(extra_items=extra)
 
     gamepad.btn_mode_pressed.connect(_on_btn_mode)
 
