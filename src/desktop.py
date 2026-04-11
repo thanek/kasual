@@ -241,8 +241,7 @@ class Desktop(QWidget):
 
         QApplication.instance().installEventFilter(self)
 
-        self._gamepad.push_handler(self._handle_pad)
-        self.showFullScreen()
+        # Nie pokazujemy Desktop przy starcie — czekamy na sygnał connected_changed(True)
 
     # ── Publiczne API ──────────────────────────────────────────────────────
 
@@ -255,6 +254,12 @@ class Desktop(QWidget):
         self._dyn_active = None
         self._gamepad.push_handler(self._handle_pad)
         self._wm.refresh_now()
+        self.showFullScreen()
+        self.activateWindow()
+
+    def resume(self) -> None:
+        """Przywróć Desktop po ponownym podłączeniu pada — bez resetowania stanu."""
+        self._gamepad.push_handler(self._handle_pad)
         self.showFullScreen()
         self.activateWindow()
 

@@ -108,6 +108,17 @@ def main() -> None:
 
     gamepad.btn_mode_pressed.connect(_on_btn_mode)
 
+    # ── Pad podłączony / odłączony ─────────────────────────────────────────
+
+    def _on_connected_changed(connected: bool) -> None:
+        if connected:
+            desktop.resume()
+        else:
+            overlay.hide_overlay()
+            desktop.hide()
+
+    gamepad.connected_changed.connect(_on_connected_changed)
+
     # ── Tray icon ──────────────────────────────────────────────────────────
 
     tray = QSystemTrayIcon(_make_tray_icon())
