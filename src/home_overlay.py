@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QLabel,
     QGraphicsDropShadowEffect,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QCoreApplication
 from PyQt6.QtGui import QColor, QPainter, QKeyEvent
 
 import qtawesome as qta
@@ -21,6 +21,7 @@ _STATIC_ITEMS = [
     {"label": "  Zrestartuj komputer",  "icon": "fa5s.redo-alt",  "action": "restart"},
     {"label": "  Zamknij system",       "icon": "fa5s.power-off", "action": "shutdown"},
     {"label": "  Anuluj",               "icon": "fa5s.times",     "action": "cancel"},
+    {"label": "  Wyjdź z Pulpitu",      "icon": "fa5s.power-off",      "action": "exit_app"}
 ]
 
 
@@ -190,6 +191,21 @@ class HomeOverlay(QWidget):
         elif action == "shutdown":
             self.hide_overlay()
             self._ask_system_action("Czy na pewno chcesz wyłączyć komputer?", ["systemctl", "poweroff"])
+        elif action == "exit_app":
+            self.hide_overlay()
+            self._ask_before_quit("Czy na pewno chcesz wyjść?")
+
+    def _ask_before_quit(self, question: str) -> None:
+        ConfirmDialog(
+            question=question,
+            on_confirmed=self._quit_app,
+            on_cancelled=lambda: None,
+            gamepad=self._gamepad,
+        )
+
+    def _quit_app(self) -> None:
+        logger.info("Wybrano opcję: Wyjście z pulpitu. Zamykanie aplikacji.")
+        QCoreApplication.quit()
 
     def _ask_system_action(self, question: str, cmd: list[str]) -> None:
         ConfirmDialog(
