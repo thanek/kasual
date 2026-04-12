@@ -14,6 +14,7 @@ import qtawesome as qta
 from gamepad_watcher import GamepadWatcher
 from confirm_dialog import ConfirmDialog
 from styles import Styles
+from system_actions import SYSTEM_ACTION_SPECS
 import sound_player
 
 logger = logging.getLogger(__name__)
@@ -197,33 +198,21 @@ class HomeOverlay(QWidget):
             self.hide_overlay()
             if self._on_cancel:
                 self._on_cancel()
-        elif action == "sleep":
-            self.hide_overlay()
-            self._ask_system_action("Czy na pewno chcesz uśpić system?", ["systemctl", "suspend"])
-        elif action == "restart":
-            self.hide_overlay()
-            self._ask_system_action("Czy na pewno chcesz zrestartować komputer?", ["systemctl", "reboot"])
-        elif action == "shutdown":
-            self.hide_overlay()
-            self._ask_system_action("Czy na pewno chcesz wyłączyć komputer?", ["systemctl", "poweroff"])
-        elif action == "hide_desktop":
-            self.hide_overlay()
-            self._ask_before_hide("Czy na pewno chcesz zminimalizować Pulpit?")
-
-    def _ask_before_hide(self, question: str) -> None:
-        if self._on_hide_desktop is None:
             return
-        ConfirmDialog(
-            question=question,
-            on_confirmed=self._on_hide_desktop,
-            on_cancelled=lambda: None,
-            gamepad=self._gamepad,
-        )
 
-    def _ask_system_action(self, question: str, cmd: list[str]) -> None:
+        if action not in SYSTEM_ACTION_SPECS:
+            return
+        question, cmd = SYSTEM_ACTION_SPECS[action]
+        on_confirmed = (
+            self._on_hide_desktop if cmd is None
+            else (lambda c=cmd: subprocess.Popen(c))
+        )
+        if on_confirmed is None:
+            return
+        self.hide_overlay()
         ConfirmDialog(
             question=question,
-            on_confirmed=lambda: subprocess.Popen(cmd),
+            on_confirmed=on_confirmed,
             on_cancelled=lambda: None,
             gamepad=self._gamepad,
         )

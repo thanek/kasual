@@ -21,6 +21,7 @@ from confirm_dialog import ConfirmDialog
 from volume_overlay import VolumeOverlay
 from window_manager import KWinWindowManager
 from styles import Styles
+from system_actions import SYSTEM_ACTION_SPECS
 import sound_player
 
 logger = logging.getLogger(__name__)
@@ -834,29 +835,17 @@ class Desktop(QWidget):
             overlay = VolumeOverlay(self._gamepad)
             self._volume_overlay = overlay
             overlay.closed.connect(self._on_volume_closed)
-        elif action_type == "hide_desktop":
-            self._ask_before_hide("Czy na pewno chcesz zminimalizować Pulpit?")
-        elif action_type == "sleep":
-            self._ask_system_action("Czy na pewno chcesz uśpić system?", ["systemctl", "suspend"])
-        elif action_type == "restart":
-            self._ask_system_action("Czy na pewno chcesz zrestartować komputer?", ["systemctl", "reboot"])
-        elif action_type == "shutdown":
-            self._ask_system_action("Czy na pewno chcesz wyłączyć komputer?", ["systemctl", "poweroff"])
-
-    def _ask_before_hide(self, question: str) -> None:
-        ConfirmDialog(
-            question=question,
-            on_confirmed=lambda: self.hide(),
-            on_cancelled=lambda: None,
-            gamepad=self._gamepad,
-        )
-
-    def _ask_system_action(self, question: str, cmd: list[str]) -> None:
-        if self._confirm_dialog is not None:
             return
+        if action_type not in SYSTEM_ACTION_SPECS or self._confirm_dialog is not None:
+            return
+        question, cmd = SYSTEM_ACTION_SPECS[action_type]
+        on_confirmed = (
+            (lambda: self.hide()) if cmd is None
+            else (lambda c=cmd: self._do_system_action(c))
+        )
         self._confirm_dialog = ConfirmDialog(
             question=question,
-            on_confirmed=lambda: self._do_system_action(cmd),
+            on_confirmed=on_confirmed,
             on_cancelled=self._on_close_cancelled,
             gamepad=self._gamepad,
         )
