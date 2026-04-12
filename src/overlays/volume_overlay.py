@@ -41,7 +41,7 @@ def _set_volume(pct: int) -> None:
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     except Exception as e:
-        logger.error("Błąd ustawiania głośności: %s", e)
+        logger.error("Error during volume setting: %s", e)
 
 
 class VolumeOverlay(BaseOverlay):

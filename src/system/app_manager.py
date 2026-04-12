@@ -30,14 +30,14 @@ class AppManager(QObject):
     def launch(self, idx: int, app: dict) -> None:
         if self._process is not None and self._process.poll() is None:
             logger.warning(
-                "Próba uruchomienia app %d gdy %d już działa – ignoruję",
+                "Attempt to launch app %d when %d is already running – ignoring",
                 idx, self._running_idx,
             )
             return
 
         command = app["command"]
         args    = [str(a) for a in app.get("args", [])]
-        logger.info("Uruchamiam [%d] %s %s", idx, command, args)
+        logger.info("Launching [%d] %s %s", idx, command, args)
 
         self._process = subprocess.Popen(
             [command] + args,
@@ -51,7 +51,7 @@ class AppManager(QObject):
 
     def terminate(self) -> None:
         if self._process is not None and self._process.poll() is None:
-            logger.info("Kończę aplikację %d (SIGTERM do grupy)", self._running_idx)
+            logger.info("Ending app %d (SIGTERM)", self._running_idx)
             self._killpg(signal.SIGTERM)
             # Jeśli proces nie zakończy się w 3 s – wymuś SIGKILL
             QTimer.singleShot(3000, self._force_kill)
@@ -81,7 +81,7 @@ class AppManager(QObject):
 
     def _force_kill(self) -> None:
         if self._process is not None and self._process.poll() is None:
-            logger.warning("Wymuszam SIGKILL dla aplikacji %d", self._running_idx)
+            logger.warning("Forcing SIGKILL for application %d", self._running_idx)
             self._killpg(signal.SIGKILL)
 
     def _monitor(self, idx: int) -> None:
@@ -99,7 +99,7 @@ class AppManager(QObject):
         self._proc_ended.emit(idx, self._process.returncode)
 
     def _on_finished(self, idx: int, exit_code: int) -> None:
-        logger.info("Aplikacja %d zakończona (kod=%d)", idx, exit_code)
+        logger.info("Application %d ended (exit code=%d)", idx, exit_code)
         self._running_idx = None
         self._process     = None
         self.app_finished.emit(idx)

@@ -115,7 +115,7 @@ class ConfirmDialog(BaseOverlay):
     def _close(self) -> bool:
         if self._closed:
             return False
-        logger.info("ConfirmDialog._close() – chowam dialog")
+        logger.info("ConfirmDialog._close() – hiding the dialog")
         self._closed = True
         self._gamepad.pop_handler(self._handler)
         self.hide()
@@ -124,7 +124,7 @@ class ConfirmDialog(BaseOverlay):
 
     def force_close(self) -> None:
         """Wymuś zamknięcie (np. gdy aplikacja zakończyła się z zewnątrz)."""
-        logger.warning("ConfirmDialog.force_close() – wymuszam zamknięcie")
+        logger.warning("ConfirmDialog.force_close() – forcing closing the dialog")
         if not self._closed:
             self._closed = True
             self._gamepad.pop_handler(self._handler)

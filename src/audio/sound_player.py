@@ -63,12 +63,12 @@ def _read_wav(path: Path) -> tuple[QAudioFormat, bytes] | None:
             elif sample_width == 4:
                 fmt.setSampleFormat(QAudioFormat.SampleFormat.Int32)
             else:
-                logger.warning("Nieobsługiwana głębia bitowa (%d B): %s", sample_width, path)
+                logger.warning("Unsupported sample format (%d B): %s", sample_width, path)
                 return None
 
             return fmt, data
     except Exception:
-        logger.exception("Błąd odczytu WAV: %s", path)
+        logger.exception("Error reading WAV: %s", path)
         return None
 
 
@@ -77,19 +77,19 @@ def init() -> None:
     for name in _SOUND_NAMES:
         path = _SOUNDS_DIR / f"{name}.wav"
         if not path.exists():
-            logger.warning("Brak pliku dźwiękowego: %s", path)
+            logger.warning("No sound file: %s", path)
             continue
         result = _read_wav(path)
         if result is not None:
             _loaded[name] = result
-            logger.debug("Załadowano dźwięk: %s", name)
+            logger.debug("Loaded sound: %s", name)
 
 
 def play(name: str) -> None:
     """Odtwarza wcześniej załadowany dźwięk."""
     entry = _loaded.get(name)
     if entry is None:
-        logger.warning("Nieznany dźwięk lub brak init(): %s", name)
+        logger.warning("Unknown sound or no init(): %s", name)
         return
 
     # Usuń zakończone sinki

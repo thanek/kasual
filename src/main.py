@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def _setup_logging() -> Path:
-    log_dir  = Path.home() / ".local" / "cache" / "kasual"
+    log_dir = Path.home() / ".local" / "cache" / "kasual"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "kasual.log"
 
@@ -45,10 +45,10 @@ def _load_apps() -> list[dict]:
 
 def main() -> None:
     log_file = _setup_logging()
-    logger.info("Uruchamiam Kasual")
+    logger.info("Running Kasual")
 
     apps = _load_apps()
-    logger.info("Załadowano %d aplikacji", len(apps))
+    logger.info("Loaded %d apps", len(apps))
 
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual")
@@ -58,12 +58,12 @@ def main() -> None:
     translator = QTranslator(app)
     if translator.load(QLocale.system(), "kasual", "_", locale_dir, ".qm"):
         app.installTranslator(translator)
-        logger.info("Załadowano tłumaczenie: %s", QLocale.system().name())
+        logger.info("Loaded translation: %s", QLocale.system().name())
     else:
-        logger.info("Brak pliku .qm dla lokalizacji: %s", QLocale.system().name())
+        logger.info("No .qm file for localization: %s", QLocale.system().name())
 
     gamepad = GamepadWatcher()
-    wm      = KWinWindowManager()
+    wm = KWinWindowManager()
     desktop = Desktop(apps=apps, gamepad=gamepad, window_manager=wm)
     overlay = HomeOverlay(gamepad=gamepad, on_hide_desktop=desktop.pause)
 

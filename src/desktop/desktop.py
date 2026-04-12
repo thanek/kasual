@@ -378,7 +378,7 @@ class Desktop(QWidget):
 
         self._clamp_tile_index()
         self._update_focus()
-        logger.debug('Dynamiczne kafle: %d', len(self._dynamic_tiles))
+        logger.debug('Dynamic tiles: %d', len(self._dynamic_tiles))
 
         # Jeśli aktywne okno dynamiczne znikło (zamknięte przez samą aplikację) → Pulpit
         if self._dyn_active is not None:
@@ -504,13 +504,13 @@ class Desktop(QWidget):
             # Kafel statyczny (skonfigurowana aplikacja)
             running = self._app_manager.running_idx()
             if running == idx:
-                logger.info("Przywracam aplikację %d", idx)
+                logger.info("Restoring application %d", idx)
                 sound_player.play("select")
                 self.restore_app()
             elif running is not None:
-                logger.info("Inna aplikacja (%d) już działa – ignoruję", running)
+                logger.info("Another application (%d) is already running – ignoring", running)
             else:
-                logger.info("Uruchamiam aplikację %d", idx)
+                logger.info("Launching application %d", idx)
                 sound_player.play("select")
                 self._gamepad.pop_handler(self._handle_pad)
                 self._app_manager.launch(idx, self._apps[idx])
@@ -524,9 +524,9 @@ class Desktop(QWidget):
                 self._on_dynamic_tile_clicked(win_id)
 
     def _on_app_finished(self, idx: int) -> None:
-        logger.info("Aplikacja %d zakończona – wracam do pulpitu", idx)
+        logger.info("Application %d finished – returning to desktop", idx)
         if self._confirm_dialog is not None:
-            logger.warning("Dialog nadal aktywny po zakończeniu aplikacji – wymuszam zamknięcie")
+            logger.warning("Dialog window still active after app ending – forcing close")
             self._confirm_dialog.force_close()
             self._confirm_dialog = None
         self._refresh_tile_status()

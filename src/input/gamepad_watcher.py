@@ -106,7 +106,7 @@ class GamepadWatcher(QObject):
                         uinput = UInput.from_device(d, name=VIRTUAL_DEVICE_NAME)
                         device = d
                         logger.info(
-                            "Zgrabowano: %s  →  wirtualny: %s",
+                            "Grabbed: %s  →  virtual: %s",
                             device.name, uinput.device.path,
                         )
                         if not was_connected:
@@ -114,7 +114,7 @@ class GamepadWatcher(QObject):
                             self.connected_changed.emit(True)
                         break
                     except Exception as exc:
-                        logger.debug("Pominięto urządzenie: %s", exc)
+                        logger.debug("Ommitted device: %s", exc)
 
             # ── Czytaj eventy ─────────────────────────────────────────────
             if device:
@@ -147,7 +147,7 @@ class GamepadWatcher(QObject):
                             self._translate(ev, held, stick, pending)
 
                 except OSError:
-                    logger.info("Pad odłączony")
+                    logger.info("Gamepad disconnected")
                     device = None
                     was_connected = False
                     self.connected_changed.emit(False)

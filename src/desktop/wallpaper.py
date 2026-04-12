@@ -50,7 +50,7 @@ def load_kde_wallpaper() -> 'QPixmap | None':
 
     cfg_path = Path.home() / '.config' / 'plasma-org.kde.plasma.desktop-appletsrc'
     if not cfg_path.exists():
-        logger.warning('Nie znaleziono pliku konfiguracji Plasma: %s', cfg_path)
+        logger.warning('Could not find plasma config file: %s', cfg_path)
         return None
 
     cp = configparser.RawConfigParser()
@@ -73,20 +73,20 @@ def load_kde_wallpaper() -> 'QPixmap | None':
             if resolved:
                 path = resolved
             else:
-                logger.debug('Brak obrazów w paczce: %s', path)
+                logger.debug('No images in path: %s', path)
                 continue
 
         if not os.path.isfile(path):
-            logger.debug('Pomijam (nie plik): %s', path)
+            logger.debug('Ommitting (not a file): %s', path)
             continue
 
         px = QPixmap(path)
         if px.isNull():
-            logger.debug('Nie udało się wczytać: %s', path)
+            logger.debug('Could not read: %s', path)
             continue
 
-        logger.info('Tapeta KDE: %s', path)
+        logger.info('KDE wallpaper: %s', path)
         return px
 
-    logger.warning('Nie znaleziono żadnej tapety w konfiguracji Plasma')
+    logger.warning('No wallpaper found in Plasma configuration')
     return None

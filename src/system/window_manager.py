@@ -112,17 +112,17 @@ class _WindowListHost(QObject):
         )
         ok_svc = bus.registerService(_WL_SVC)
         if not ok_obj or not ok_svc:
-            logger.error('D-Bus rejestracja nieudana: obj=%s svc=%s', ok_obj, ok_svc)
+            logger.error('D-Bus registration failed: obj=%s svc=%s', ok_obj, ok_svc)
         else:
-            logger.info('D-Bus WindowList zarejestrowany (%s %s)', _WL_SVC, _WL_PATH)
+            logger.info('D-Bus WindowList registered (%s %s)', _WL_SVC, _WL_PATH)
 
     @pyqtSlot(str)
     def receive(self, json_str: str) -> None:
-        logger.debug('D-Bus receive: %d znaków', len(json_str))
+        logger.debug('D-Bus receive: %d chars', len(json_str))
         try:
             data = json.loads(json_str)
         except Exception as exc:
-            logger.warning('WindowList JSON błąd: %s', exc)
+            logger.warning('WindowList JSON error: %s', exc)
             data = []
         self._on_receive(data)
 
@@ -158,9 +158,9 @@ class KWinWindowManager(QObject):
         # przed pierwszym loadScript(). Bezpieczne do wywołania wielokrotnie.
         reply = self._scripting.call('start')
         if reply.type() != QDBusMessage.MessageType.ReplyMessage:
-            logger.warning('KWin scripting start() nieudane: %s', reply.errorMessage())
+            logger.warning('KWin scripting start() failed: %s', reply.errorMessage())
         else:
-            logger.debug('KWin scripting engine uruchomiony')
+            logger.debug('KWin scripting engine started')
 
         self._host: _WindowListHost | None = None
         self._cache:            dict[str, dict] = {}
@@ -268,12 +268,12 @@ class KWinWindowManager(QObject):
         )
         self._cache = {w['id']: w for w in windows}
         self.windows_updated.emit(list(self._cache.values()))
-        logger.debug('Lista okien: %d, aktywne: %s', len(self._cache), self._active_window_id)
+        logger.debug('Windows list: %d, active: %s', len(self._cache), self._active_window_id)
 
     def _on_script_timeout(self) -> None:
         if self._loading:
             logger.warning(
-                'Timeout (%dms): skrypt KWin nie odpowiedział – resetuję',
+                'Timeout (%dms): KWin script did not respond – resetting',
                 _SCRIPT_TIMEOUT_MS,
             )
             self._loading = False
@@ -287,7 +287,7 @@ class KWinWindowManager(QObject):
                 f.write(content)
             return path
         except Exception as exc:
-            logger.error('Nie można zapisać skryptu: %s', exc)
+            logger.error('Could not save script: %s', exc)
             return None
 
     def _load_script(self, path: str, plugin: str) -> bool:
@@ -298,7 +298,7 @@ class KWinWindowManager(QObject):
             self._scripting.call('start')
             logger.debug('loadScript OK: %s', plugin)
             return True
-        logger.error('loadScript nieudane (%s): %s', plugin, reply.errorMessage())
+        logger.error('loadScript failed (%s): %s', plugin, reply.errorMessage())
         return False
 
     def _cleanup_script(self, path: str, plugin: str) -> None:

@@ -101,7 +101,7 @@ class LogViewer(QWidget):
             self._text.setPlainText(content)
             self._scroll_to_bottom()
         except OSError as e:
-            logger.warning("Nie można odczytać pliku logów: %s", e)
+            logger.warning("Could not read log file: %s", e)
 
     def _scroll_to_bottom(self) -> None:
         sb = self._text.verticalScrollBar()
@@ -113,7 +113,7 @@ class LogViewer(QWidget):
             self._text.clear()
             self._last_size = 0
         except OSError as e:
-            logger.warning("Nie można wyczyścić pliku logów: %s", e)
+            logger.warning("Could not clear log file: %s", e)
 
     # ── Pokaż z wymuszonym odświeżeniem ──────────────────────────────────
 
