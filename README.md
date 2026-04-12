@@ -21,7 +21,48 @@ Kasual is an interactive, graphical "launcher/desktop" interface, designed to be
 
 ### Prerequisites
 
-Ensure you have Python installed on your system.
+- **KDE Plasma 6** (Wayland or X11)
+- **Python 3.10+**
+- **pip** and **venv** (usually bundled with Python)
+- System libraries required by PyQt6:
+
+  On **Debian/Ubuntu**:
+  ```bash
+  sudo apt install python3-venv python3-dev libgl1 libegl1 libxcb-cursor0
+  ```
+
+  On **Fedora**:
+  ```bash
+  sudo dnf install python3-devel mesa-libGL mesa-libEGL libxcb
+  ```
+
+  On **Arch Linux**:
+  ```bash
+  sudo pacman -S python mesa libxcb
+  ```
+
+### Gamepad permissions
+
+Kasual reads gamepad input directly via `evdev`, which requires access to `/dev/input/*` devices. Without this, the application will not detect any controller.
+
+Add your user to the `input` group:
+
+```bash
+sudo usermod -aG input $USER
+```
+
+Then log out and log back in (or reboot) for the change to take effect. You can verify it worked with:
+
+```bash
+groups | grep input
+```
+
+Alternatively, you can create a udev rule for a more targeted approach:
+
+```bash
+echo 'SUBSYSTEM=="input", GROUP="input", MODE="0664"' | sudo tee /etc/udev/rules.d/99-kasual.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
 
 ### Installation
 
@@ -31,12 +72,18 @@ Ensure you have Python installed on your system.
    cd kasual
    ```
 
-2. Install dependencies:
+2. Create and activate a virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Run the application:
+4. Run the application:
    ```bash
    python src/main.py
    ```

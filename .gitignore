@@ -5,4 +5,3 @@ venv
 btn_mode_daemon
 .idea
 deploy.sh
-locale/*.qm
