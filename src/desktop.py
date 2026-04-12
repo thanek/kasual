@@ -295,6 +295,8 @@ class Desktop(QWidget):
         self._tile_index     = 0
         self._topbar_index   = 0
         self._confirm_dialog = None
+        self._volume_overlay = None
+        self._is_paused      = False
 
         # Dynamiczne kafle: lista (window_id, title, AppTile)
         self._dynamic_tiles:  list[tuple[str, str, AppTile]] = []
@@ -337,13 +339,18 @@ class Desktop(QWidget):
         self._dyn_active = None
         self._gamepad.push_handler(self._handle_pad)
         self._wm.refresh_now()
-        sound_player.play("start")
         self.showFullScreen()
+        self._restore_overlays()
         self.activateWindow()
 
     def pause(self) -> None:
         """Ukryj Desktop bez odłączania pada (minimalizacja do tray)."""
         sound_player.play("exit")
+        self._is_paused = True
+        if self._volume_overlay is not None:
+            self._volume_overlay.pause()
+        if self._confirm_dialog is not None:
+            self._confirm_dialog.pause()
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
 
@@ -352,7 +359,18 @@ class Desktop(QWidget):
         self._gamepad.push_handler(self._handle_pad)
         sound_player.play("start")
         self.showFullScreen()
+        self._restore_overlays()
         self.activateWindow()
+
+    def _restore_overlays(self) -> None:
+        """Przywróć overlaye ukryte przez pause(). Noop jeśli nie byliśmy spauzowani."""
+        if not self._is_paused:
+            return
+        self._is_paused = False
+        if self._volume_overlay is not None:
+            self._volume_overlay.resume()
+        if self._confirm_dialog is not None:
+            self._confirm_dialog.resume()
 
     @property
     def active_dynamic_window(self) -> tuple[str, str] | None:
@@ -813,6 +831,7 @@ class Desktop(QWidget):
         action_type = TOPBAR_ACTIONS[idx]["type"]
         if action_type == "volume":
             overlay = VolumeOverlay(self._gamepad)
+            self._volume_overlay = overlay
             overlay.closed.connect(self._on_volume_closed)
         elif action_type == "sleep":
             self._ask_system_action("Czy na pewno chcesz uśpić system?", ["systemctl", "suspend"])
@@ -836,5 +855,6 @@ class Desktop(QWidget):
         subprocess.Popen(cmd)
 
     def _on_volume_closed(self) -> None:
+        self._volume_overlay = None
         self._focus_mode = "topbar"
         self._update_focus()

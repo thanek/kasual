@@ -156,6 +156,15 @@ class VolumeOverlay(QWidget):
 
     # ── Zamknięcie ─────────────────────────────────────────────────────────
 
+    def pause(self) -> None:
+        self._gamepad.pop_handler(self._handle_pad)
+        self.hide()
+
+    def resume(self) -> None:
+        self._gamepad.push_handler(self._handle_pad)
+        self.showFullScreen()
+        self.activateWindow()
+
     def _close(self) -> None:
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()

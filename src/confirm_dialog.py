@@ -132,6 +132,17 @@ class ConfirmDialog(QWidget):
         self.deleteLater()
         return True
 
+    def pause(self) -> None:
+        if not self._closed:
+            self._gamepad.pop_handler(self._handle_pad)
+            self.hide()
+
+    def resume(self) -> None:
+        if not self._closed:
+            self._gamepad.push_handler(self._handle_pad)
+            self.showFullScreen()
+            self.activateWindow()
+
     def force_close(self) -> None:
         """Wymuś zamknięcie (np. gdy aplikacja zakończyła się z zewnątrz)."""
         logger.warning("ConfirmDialog.force_close() – wymuszam zamknięcie")

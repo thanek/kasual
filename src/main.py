@@ -131,9 +131,13 @@ def main() -> None:
 
     log_viewer = LogViewer(str(log_file))
 
+    def _show_from_tray() -> None:
+        sound_player.play("start")
+        desktop.show_desktop()
+
     tray_menu = QMenu()
     show_action = tray_menu.addAction("Pokaż pulpit")
-    show_action.triggered.connect(lambda: (desktop.show_desktop()))
+    show_action.triggered.connect(_show_from_tray)
     logs_action = tray_menu.addAction("Logi")
     logs_action.triggered.connect(log_viewer.show)
     tray_menu.addSeparator()
@@ -142,7 +146,7 @@ def main() -> None:
 
     tray.setContextMenu(tray_menu)
     tray.activated.connect(
-        lambda reason: (desktop.show_desktop())
+        lambda reason: _show_from_tray()
         if reason == QSystemTrayIcon.ActivationReason.Trigger
         else None
     )
