@@ -5,12 +5,13 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
     QGraphicsDropShadowEffect,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QKeyEvent
 
 import qtawesome as qta
 
 from gamepad_watcher import GamepadWatcher
+from base_overlay import BaseOverlay
 import sound_player
 
 logger = logging.getLogger(__name__)
@@ -44,23 +45,14 @@ def _set_volume(pct: int) -> None:
         logger.error("Błąd ustawiania głośności: %s", e)
 
 
-class VolumeOverlay(QWidget):
+class VolumeOverlay(BaseOverlay):
     """Fullscreen overlay ze sliderem głośności."""
 
     closed = pyqtSignal()
 
     def __init__(self, gamepad: GamepadWatcher, parent: QWidget | None = None):
-        super().__init__(parent)
-        self._gamepad = gamepad
-        self._volume  = _get_volume()
-
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setStyleSheet("background-color: rgba(0, 0, 0, 150);")
+        super().__init__(gamepad, self._handle_pad, parent)
+        self._volume = _get_volume()
 
         outer = QVBoxLayout(self)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -124,10 +116,7 @@ class VolumeOverlay(QWidget):
         outer.addWidget(card)
 
         sound_player.play("popup_open")
-        self._gamepad.push_handler(self._handle_pad)
-        self.showFullScreen()
-        self.activateWindow()
-        self.setFocus()
+        self._show()
 
     # ── Handler pada ───────────────────────────────────────────────────────
 
@@ -159,18 +148,10 @@ class VolumeOverlay(QWidget):
 
     # ── Zamknięcie ─────────────────────────────────────────────────────────
 
-    def pause(self) -> None:
-        self._gamepad.pop_handler(self._handle_pad)
-        self.hide()
-
-    def resume(self) -> None:
-        self._gamepad.push_handler(self._handle_pad)
-        self.showFullScreen()
-        self.activateWindow()
-
     def _close(self) -> None:
         sound_player.play("popup_close")
-        self._gamepad.pop_handler(self._handle_pad)
+        self._closed = True
+        self._gamepad.pop_handler(self._handler)
         self.hide()
         self.deleteLater()
         self.closed.emit()

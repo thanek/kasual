@@ -15,6 +15,7 @@ import qtawesome as qta
 
 from gamepad_watcher import GamepadWatcher
 from app_manager import AppManager
+from base_overlay import BaseOverlay
 from confirm_dialog import ConfirmDialog
 from volume_overlay import VolumeOverlay
 from window_manager import KWinWindowManager
@@ -114,14 +115,17 @@ class Desktop(QWidget):
         self._restore_overlays()
         self.activateWindow()
 
+    @property
+    def _active_overlays(self) -> list[BaseOverlay]:
+        """Aktywne overlaye (te które mogą być pauzowane/wznawiane)."""
+        return [o for o in (self._volume_overlay, self._confirm_dialog) if o is not None]
+
     def pause(self) -> None:
         """Ukryj Desktop bez odłączania pada (minimalizacja do tray)."""
         sound_player.play("exit")
         self._is_paused = True
-        if self._volume_overlay is not None:
-            self._volume_overlay.pause()
-        if self._confirm_dialog is not None:
-            self._confirm_dialog.pause()
+        for overlay in self._active_overlays:
+            overlay.pause()
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
 
@@ -138,10 +142,8 @@ class Desktop(QWidget):
         if not self._is_paused:
             return
         self._is_paused = False
-        if self._volume_overlay is not None:
-            self._volume_overlay.resume()
-        if self._confirm_dialog is not None:
-            self._confirm_dialog.resume()
+        for overlay in self._active_overlays:
+            overlay.resume()
 
     @property
     def active_dynamic_window(self) -> tuple[str, str] | None:

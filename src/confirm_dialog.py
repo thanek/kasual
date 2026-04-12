@@ -2,20 +2,21 @@ import logging
 from typing import Callable
 
 from PyQt6.QtWidgets import (
-    QWidget, QPushButton, QLabel, QHBoxLayout, QVBoxLayout,
-    QGraphicsDropShadowEffect,
+    QPushButton, QLabel, QHBoxLayout, QVBoxLayout,
+    QGraphicsDropShadowEffect, QWidget,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QKeyEvent
 
 from gamepad_watcher import GamepadWatcher
+from base_overlay import BaseOverlay
 from styles import Styles
 import sound_player
 
 logger = logging.getLogger(__name__)
 
 
-class ConfirmDialog(QWidget):
+class ConfirmDialog(BaseOverlay):
     """
     Fullscreen overlay z pytaniem o potwierdzenie.
     Rejestruje własny handler w GamepadManager na czas swojego życia.
@@ -29,20 +30,10 @@ class ConfirmDialog(QWidget):
         gamepad: GamepadWatcher,
         parent: QWidget | None = None,
     ):
-        super().__init__(parent)
+        super().__init__(gamepad, self._handle_pad, parent)
         self._on_confirmed = on_confirmed
         self._on_cancelled = on_cancelled
-        self._gamepad      = gamepad
         self._focus_yes    = True
-        self._closed       = False
-
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setStyleSheet("background-color: rgba(0, 0, 0, 150);")
 
         outer = QVBoxLayout(self)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -83,11 +74,8 @@ class ConfirmDialog(QWidget):
         outer.addWidget(card)
         self._refresh_buttons()
 
-        self._gamepad.push_handler(self._handle_pad)
         sound_player.play("popup_open")
-        self.showFullScreen()
-        self.activateWindow()
-        self.setFocus()
+        self._show()
 
     # ── Handler pada ───────────────────────────────────────────────────────
 
@@ -129,28 +117,17 @@ class ConfirmDialog(QWidget):
             return False
         logger.info("ConfirmDialog._close() – chowam dialog")
         self._closed = True
-        self._gamepad.pop_handler(self._handle_pad)
+        self._gamepad.pop_handler(self._handler)
         self.hide()
         self.deleteLater()
         return True
-
-    def pause(self) -> None:
-        if not self._closed:
-            self._gamepad.pop_handler(self._handle_pad)
-            self.hide()
-
-    def resume(self) -> None:
-        if not self._closed:
-            self._gamepad.push_handler(self._handle_pad)
-            self.showFullScreen()
-            self.activateWindow()
 
     def force_close(self) -> None:
         """Wymuś zamknięcie (np. gdy aplikacja zakończyła się z zewnątrz)."""
         logger.warning("ConfirmDialog.force_close() – wymuszam zamknięcie")
         if not self._closed:
             self._closed = True
-            self._gamepad.pop_handler(self._handle_pad)
+            self._gamepad.pop_handler(self._handler)
         self.hide()
         self.deleteLater()
 
