@@ -15,13 +15,13 @@ from unittest.mock import patch
 from home_overlay import HomeOverlay, _STATIC_ITEMS
 
 
-def _make_overlay(mock_gamepad):
-    return HomeOverlay(gamepad=mock_gamepad)
+def _make_overlay(mock_gamepad, on_hide_desktop=None):
+    return HomeOverlay(gamepad=mock_gamepad, on_hide_desktop=on_hide_desktop)
 
 
-def _shown(mock_gamepad, extra_items=None, on_cancel=None):
+def _shown(mock_gamepad, extra_items=None, on_cancel=None, on_hide_desktop=None):
     """Zwraca overlay w stanie pokazanym (show_overlay wywołane)."""
-    overlay = _make_overlay(mock_gamepad)
+    overlay = _make_overlay(mock_gamepad, on_hide_desktop=on_hide_desktop)
     overlay.show_overlay(extra_items=extra_items, on_cancel=on_cancel)
     return overlay
 
@@ -168,6 +168,29 @@ class TestActivate:
         overlay._index = action_idx
         with patch.object(overlay, "_ask_system_action"):
             overlay._handle_pad("select")
+        assert not overlay.isVisible()
+
+    def test_hide_desktop_calls_ask_before_hide(self, mock_gamepad):
+        overlay = _shown(mock_gamepad, on_hide_desktop=lambda: None)
+        hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
+        overlay._index = hide_idx
+        with patch.object(overlay, "_ask_before_hide") as mock_ask:
+            overlay._handle_pad("select")
+        mock_ask.assert_called_once()
+
+    def test_hide_desktop_hides_overlay_before_confirming(self, mock_gamepad):
+        overlay = _shown(mock_gamepad, on_hide_desktop=lambda: None)
+        hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
+        overlay._index = hide_idx
+        with patch.object(overlay, "_ask_before_hide"):
+            overlay._handle_pad("select")
+        assert not overlay.isVisible()
+
+    def test_hide_desktop_noop_when_no_callback(self, mock_gamepad):
+        overlay = _shown(mock_gamepad)   # on_hide_desktop=None
+        hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
+        overlay._index = hide_idx
+        overlay._handle_pad("select")   # nie powinno rzucać
         assert not overlay.isVisible()
 
 

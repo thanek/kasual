@@ -21,6 +21,7 @@ from confirm_dialog import ConfirmDialog
 from volume_overlay import VolumeOverlay
 from window_manager import KWinWindowManager
 from styles import Styles
+import sound_player
 
 logger = logging.getLogger(__name__)
 
@@ -336,17 +337,20 @@ class Desktop(QWidget):
         self._dyn_active = None
         self._gamepad.push_handler(self._handle_pad)
         self._wm.refresh_now()
+        sound_player.play("start")
         self.showFullScreen()
         self.activateWindow()
 
     def pause(self) -> None:
         """Ukryj Desktop bez odłączania pada (minimalizacja do tray)."""
+        sound_player.play("exit")
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
 
     def resume(self) -> None:
         """Przywróć Desktop po ponownym podłączeniu pada — bez resetowania stanu."""
         self._gamepad.push_handler(self._handle_pad)
+        sound_player.play("start")
         self.showFullScreen()
         self.activateWindow()
 
@@ -611,6 +615,7 @@ class Desktop(QWidget):
         title = next((t for wid, t, _ in self._dynamic_tiles if wid == window_id), window_id)
         self._dyn_active = (window_id, title)
         self._wm.activate_window(window_id)
+        sound_player.play("select")
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
 
@@ -680,13 +685,16 @@ class Desktop(QWidget):
             if event == "left" and self._tile_index > 0:
                 self._tile_index -= 1
                 self._update_focus()
+                sound_player.play("cursor")
             elif event == "right" and self._tile_index < max_idx:
                 self._tile_index += 1
                 self._update_focus()
+                sound_player.play("cursor")
             elif event == "up" and self._topbar_buttons:
                 self._focus_mode = "topbar"
                 self._topbar_index = 0
                 self._update_focus()
+                sound_player.play("cursor")
             elif event == "select":
                 self._on_tile_clicked(self._tile_index)
             elif event == "close":
@@ -696,12 +704,15 @@ class Desktop(QWidget):
             if event == "left":
                 self._topbar_index = (self._topbar_index - 1) % len(self._topbar_buttons)
                 self._update_focus()
+                sound_player.play("cursor")
             elif event == "right":
                 self._topbar_index = (self._topbar_index + 1) % len(self._topbar_buttons)
                 self._update_focus()
+                sound_player.play("cursor")
             elif event in ("down", "cancel"):
                 self._focus_mode = "tiles"
                 self._update_focus()
+                sound_player.play("cursor")
             elif event == "select":
                 self._topbar_action(self._topbar_index)
 
@@ -715,11 +726,13 @@ class Desktop(QWidget):
             running = self._app_manager.running_idx()
             if running == idx:
                 logger.info("Przywracam aplikację %d", idx)
+                sound_player.play("select")
                 self.restore_app()
             elif running is not None:
                 logger.info("Inna aplikacja (%d) już działa – ignoruję", running)
             else:
                 logger.info("Uruchamiam aplikację %d", idx)
+                sound_player.play("select")
                 self._gamepad.pop_handler(self._handle_pad)
                 self._app_manager.launch(idx, self._apps[idx])
                 # self.hide()

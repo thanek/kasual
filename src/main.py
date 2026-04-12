@@ -6,12 +6,14 @@ import yaml
 import qtawesome as qta
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QTimer
 
 from gamepad_watcher import GamepadWatcher
 from desktop import Desktop
 from home_overlay import HomeOverlay
 from log_viewer import LogViewer
 from window_manager import KWinWindowManager
+import sound_player
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +147,8 @@ def main() -> None:
         else None
     )
     tray.show()
+
+    QTimer.singleShot(0, sound_player.init)
 
     sys.exit(app.exec())
 

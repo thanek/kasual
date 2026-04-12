@@ -12,6 +12,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def silence_sounds():
+    """Wycisza sound_player.play we wszystkich testach."""
+    with patch("sound_player.play"):
+        yield
+
+
 @pytest.fixture
 def mock_gamepad(qapp):
     """

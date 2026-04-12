@@ -11,6 +11,7 @@ from PyQt6.QtGui import QColor, QKeyEvent
 import qtawesome as qta
 
 from gamepad_watcher import GamepadWatcher
+import sound_player
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,7 @@ class VolumeOverlay(QWidget):
         self._slider.setValue(self._volume)
         self._value_lbl.setText(f"{self._volume}%")
         _set_volume(self._volume)
+        sound_player.play("cursor")
 
     # ── Klawiatura ─────────────────────────────────────────────────────────
 

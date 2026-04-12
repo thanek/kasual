@@ -14,6 +14,7 @@ import qtawesome as qta
 from gamepad_watcher import GamepadWatcher
 from confirm_dialog import ConfirmDialog
 from styles import Styles
+import sound_player
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,7 @@ class HomeOverlay(QWidget):
         self._index = 0
         self._refresh_buttons()
         self._gamepad.push_handler(self._handle_pad)
+        sound_player.play("popup_open")
         self.showFullScreen()
         self.raise_()
         self.activateWindow()
@@ -122,6 +124,7 @@ class HomeOverlay(QWidget):
 
     def _dismiss(self) -> None:
         """Zamknij overlay i przywróć poprzedni kontekst (on_cancel)."""
+        sound_player.play("popup_close")
         self.hide_overlay()
         if self._on_cancel:
             self._on_cancel()
@@ -152,9 +155,11 @@ class HomeOverlay(QWidget):
         if event == "up":
             self._index = (self._index - 1) % len(self._items)
             self._refresh_buttons()
+            sound_player.play("cursor")
         elif event == "down":
             self._index = (self._index + 1) % len(self._items)
             self._refresh_buttons()
+            sound_player.play("cursor")
         elif event == "select":
             self._activate(self._index)
         elif event in ("cancel", "close"):
@@ -181,12 +186,14 @@ class HomeOverlay(QWidget):
         item = self._items[idx]
 
         if "callback" in item:
+            sound_player.play("select")
             self.hide_overlay()
             item["callback"]()
             return
 
         action = item["action"]
         if action == "cancel":
+            sound_player.play("popup_close")
             self.hide_overlay()
             if self._on_cancel:
                 self._on_cancel()

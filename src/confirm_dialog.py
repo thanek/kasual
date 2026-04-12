@@ -10,6 +10,7 @@ from PyQt6.QtGui import QColor, QKeyEvent
 
 from gamepad_watcher import GamepadWatcher
 from styles import Styles
+import sound_player
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ class ConfirmDialog(QWidget):
         self._refresh_buttons()
 
         self._gamepad.push_handler(self._handle_pad)
+        sound_player.play("popup_open")
         self.showFullScreen()
         self.activateWindow()
 
@@ -95,6 +97,7 @@ class ConfirmDialog(QWidget):
         elif event in ("left", "right"):
             self._focus_yes = not self._focus_yes
             self._refresh_buttons()
+            sound_player.play("cursor")
 
     # ── Klawiatura ─────────────────────────────────────────────────────────
 
@@ -111,10 +114,12 @@ class ConfirmDialog(QWidget):
 
     def _confirm(self) -> None:
         if self._close():
+            sound_player.play("select")
             self._on_confirmed()
 
     def _cancel(self) -> None:
         if self._close():
+            sound_player.play("popup_close")
             self._on_cancelled()
 
     def _close(self) -> bool:
