@@ -1,5 +1,4 @@
 import logging
-import subprocess
 from typing import Callable, NotRequired, TypedDict
 
 import qtawesome as qta
@@ -12,7 +11,7 @@ from PyQt6.QtWidgets import (
 
 from audio import sound_player
 from input.gamepad_watcher import GamepadWatcher
-from system.system_actions import SYSTEM_ACTION_SPECS
+from system.system_actions import execute_action, ACTION_DEFS
 from ui import styles
 from .confirm_dialog import ConfirmDialog
 
@@ -26,15 +25,22 @@ class MenuItem(TypedDict):
     callback: NotRequired[Callable]  # for dynamic items (extra_items)
 
 
-# Labels marked with QT_TRANSLATE_NOOP — extracted by pylupdate6,
-# and translated only when building buttons in _rebuild_buttons().
-_STATIC_ITEMS: list[MenuItem] = [
-    {"label": QT_TRANSLATE_NOOP("Kasual", "Return to Desktop"),  "icon": "fa5s.times",          "action": "cancel"},
-    {"label": QT_TRANSLATE_NOOP("Kasual", "Minimize Desktop"),   "icon": "fa5s.window-minimize", "action": "hide_desktop"},
-    {"label": QT_TRANSLATE_NOOP("Kasual", "Sleep"),              "icon": "fa5s.moon",            "action": "sleep"},
-    {"label": QT_TRANSLATE_NOOP("Kasual", "Restart"),            "icon": "fa5s.redo-alt",        "action": "restart"},
-    {"label": QT_TRANSLATE_NOOP("Kasual", "Shut Down"),          "icon": "fa5s.power-off",       "action": "shutdown"},
-]
+_CANCEL_ITEM: MenuItem = {
+    "label": QT_TRANSLATE_NOOP("Kasual", "Return to Desktop"),
+    "icon":  "fa5s.times",
+    "action": "cancel",
+}
+
+def _build_static_items() -> list[MenuItem]:
+    volume_item = next(
+        {"label": d["label"], "icon": d["icon"], "action": d["type"]}
+        for d in ACTION_DEFS if d["type"] == "volume"
+    )
+    rest = [
+        {"label": d["label"], "icon": d["icon"], "action": d["type"]}
+        for d in ACTION_DEFS if d["type"] != "volume"
+    ]
+    return [volume_item, _CANCEL_ITEM] + rest
 
 
 class HomeOverlay(QWidget):
@@ -50,10 +56,11 @@ class HomeOverlay(QWidget):
         overlay.hide_overlay()                    # hide
     """
 
-    def __init__(self, gamepad: GamepadWatcher, on_hide_desktop: Callable | None = None, parent=None):
+    def __init__(self, gamepad: GamepadWatcher, on_hide_desktop: Callable | None = None, on_volume: Callable | None = None, parent=None):
         super().__init__(parent)
         self._gamepad          = gamepad
         self._on_hide_desktop  = on_hide_desktop
+        self._on_volume        = on_volume
         self._index            = 0
         self._items:     list[MenuItem]    = []
         self._buttons:   list[QPushButton] = []
@@ -155,7 +162,7 @@ class HomeOverlay(QWidget):
                 item.widget().deleteLater()
         self._buttons.clear()
 
-        self._items = list(extra_items) if extra_items else list(_STATIC_ITEMS)
+        self._items = list(extra_items) if extra_items else _build_static_items()
 
         for item in self._items:
             # Static items have labels marked with QT_TRANSLATE_NOOP — we translate here.
@@ -222,21 +229,17 @@ class HomeOverlay(QWidget):
                 self._on_cancel()
             return
 
-        if action not in SYSTEM_ACTION_SPECS:
-            return
-        if action == "hide_desktop":
-            self.hide_overlay()
-            if self._on_hide_desktop:
-                self._on_hide_desktop()
-            return
-        question_src, cmd = SYSTEM_ACTION_SPECS[action]
-        question = QCoreApplication.translate("Kasual", question_src)
         self.hide_overlay()
-        ConfirmDialog(
-            question=question,
-            on_confirmed=lambda c=cmd: subprocess.Popen(c),
-            on_cancelled=lambda: None,
-            gamepad=self._gamepad,
+        execute_action(
+            action,
+            on_volume=self._on_volume,
+            on_hide_desktop=self._on_hide_desktop,
+            show_confirm=lambda q, cb: ConfirmDialog(
+                question=q,
+                on_confirmed=cb,
+                on_cancelled=lambda: None,
+                gamepad=self._gamepad,
+            ),
         )
 
     # ── Style ──────────────────────────────────────────────────────────────

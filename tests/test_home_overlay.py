@@ -12,7 +12,7 @@ Testujemy:
 import pytest
 from unittest.mock import patch
 
-from overlays.home_overlay import HomeOverlay, _STATIC_ITEMS
+from overlays.home_overlay import HomeOverlay, _build_static_items
 
 
 def _make_overlay(mock_gamepad, on_hide_desktop=None):
@@ -56,7 +56,7 @@ class TestShowHide:
 class TestItemBuilding:
     def test_default_items_are_static(self, mock_gamepad):
         overlay = _shown(mock_gamepad)
-        assert overlay._items == list(_STATIC_ITEMS)
+        assert overlay._items == _build_static_items()
         overlay.hide_overlay()
 
     def test_extra_items_replace_static(self, mock_gamepad):

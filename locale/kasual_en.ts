@@ -16,17 +16,30 @@
 </context><context>
     <name>Desktop</name>
     <message>
-        <location filename="../src/desktop/desktop.py" line="559" />
-        <location filename="../src/desktop/desktop.py" line="166" />
+        <location filename="../src/desktop/desktop.py" line="562" />
+        <location filename="../src/desktop/desktop.py" line="160" />
         <source>Are you sure you want to close
 "{0}"?</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../src/desktop/desktop.py" line="524" />
+        <source>Failed to launch application:
+{0}</source>
         <translation type="unfinished" />
     </message>
 </context><context>
     <name>HomeOverlay</name>
     <message>
-        <location filename="../src/overlays/home_overlay.py" line="81" />
+        <location filename="../src/overlays/home_overlay.py" line="88" />
         <source>Menu</source>
+        <translation type="unfinished" />
+    </message>
+</context><context>
+    <name>InfoDialog</name>
+    <message>
+        <location filename="../src/overlays/info_dialog.py" line="51" />
+        <source>OK</source>
         <translation type="unfinished" />
     </message>
 </context><context>
@@ -42,49 +55,49 @@
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../src/overlays/home_overlay.py" line="32" />
+        <location filename="../src/overlays/home_overlay.py" line="29" />
         <location filename="../src/app.py" line="72" />
         <source>Return to Desktop</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../src/overlays/home_overlay.py" line="33" />
-        <source>Minimize Desktop</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/overlays/home_overlay.py" line="34" />
-        <source>Sleep</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/overlays/home_overlay.py" line="35" />
-        <source>Restart</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/overlays/home_overlay.py" line="36" />
-        <source>Shut Down</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/system/system_actions.py" line="10" />
-        <source>Are you sure you want to sleep?</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../src/system/system_actions.py" line="11" />
-        <source>Are you sure you want to restart?</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
         <location filename="../src/system/system_actions.py" line="12" />
-        <source>Are you sure you want to shut down?</source>
+        <source>Volume</source>
         <translation type="unfinished" />
     </message>
     <message>
         <location filename="../src/system/system_actions.py" line="13" />
-        <source>Are you sure you want to minimize Desktop?</source>
+        <source>Minimize Desktop</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../src/system/system_actions.py" line="14" />
+        <source>Sleep</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../src/system/system_actions.py" line="15" />
+        <source>Restart</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../src/system/system_actions.py" line="16" />
+        <source>Shut Down</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../src/system/system_actions.py" line="21" />
+        <source>Are you sure you want to sleep?</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../src/system/system_actions.py" line="22" />
+        <source>Are you sure you want to restart?</source>
+        <translation type="unfinished" />
+    </message>
+    <message>
+        <location filename="../src/system/system_actions.py" line="23" />
+        <source>Are you sure you want to shut down?</source>
         <translation type="unfinished" />
     </message>
     <message>

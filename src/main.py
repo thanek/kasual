@@ -65,7 +65,7 @@ def main() -> None:
     gamepad = GamepadWatcher()
     wm = KWinWindowManager()
     desktop = Desktop(apps=apps, gamepad=gamepad, window_manager=wm)
-    overlay = HomeOverlay(gamepad=gamepad, on_hide_desktop=desktop.pause)
+    overlay = HomeOverlay(gamepad=gamepad, on_hide_desktop=desktop.pause, on_volume=desktop._open_volume_overlay)
 
     log_viewer = LogViewer(str(log_file))
     tray = SystemTray(

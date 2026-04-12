@@ -1,10 +1,9 @@
 import logging
 import os
-import subprocess
 from collections.abc import Callable
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt, QCoreApplication, QLocale, QTimer, QSize, QEvent
+from PyQt6.QtCore import Qt, QLocale, QTimer, QSize, QEvent
 from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
@@ -19,7 +18,7 @@ from overlays.confirm_dialog import ConfirmDialog
 from overlays.info_dialog import InfoDialog
 from overlays.volume_overlay import VolumeOverlay
 from system.app_manager import AppManager
-from system.system_actions import SYSTEM_ACTION_SPECS
+from system.system_actions import execute_action, ACTION_DEFS
 from system.window_manager import KWinWindowManager
 from ui import styles
 from .app_tile import AppTile, TILE_H
@@ -29,13 +28,6 @@ from .window_icons import resolve_window_name, resolve_window_icon
 logger = logging.getLogger(__name__)
 
 
-TOPBAR_ACTIONS = [
-    {"icon": "fa5s.volume-up", "color": "#3b4252", "type": "volume"},
-    {"icon": "fa5s.moon", "color": "#4c566a", "type": "sleep"},
-    {"icon": "fa5s.redo-alt", "color": "#5e81ac", "type": "restart"},
-    {"icon": "fa5s.power-off", "color": "#bf616a", "type": "shutdown"},
-    {"icon": "fa5s.window-minimize", "color": "#d580ff", "type": "hide_desktop"},
-]
 
 _DYN_TILE_MAX_TITLE = 22   # Maximum length of a dynamic tile title
 
@@ -196,7 +188,7 @@ class Desktop(QWidget):
 
         BTN_SIZE    = 56
         BTN_SPACING = 14
-        BTNS_TOTAL  = len(TOPBAR_ACTIONS) * BTN_SIZE + (len(TOPBAR_ACTIONS) - 1) * BTN_SPACING
+        BTNS_TOTAL  = len(ACTION_DEFS) * BTN_SIZE + (len(ACTION_DEFS) - 1) * BTN_SPACING
 
         spacer = QWidget()
         spacer.setFixedWidth(BTNS_TOTAL)
@@ -239,7 +231,7 @@ class Desktop(QWidget):
         btn_layout = QHBoxLayout(btn_area)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(BTN_SPACING)
-        for i, action in enumerate(TOPBAR_ACTIONS):
+        for i, action in enumerate(ACTION_DEFS):
             btn = QPushButton()
             btn.setFixedSize(BTN_SIZE, BTN_SIZE)
             btn.setIcon(qta.icon(action["icon"], color="white"))
@@ -426,7 +418,7 @@ class Desktop(QWidget):
             if self._focus_mode == "topbar" and i == self._topbar_index:
                 btn.setStyleSheet(styles.topbar_selected())
             else:
-                btn.setStyleSheet(styles.topbar_normal(TOPBAR_ACTIONS[i]["color"]))
+                btn.setStyleSheet(styles.topbar_normal(ACTION_DEFS[i]["color"]))
 
         if in_tiles:
             all_tiles: list[AppTile] = self._tiles + [t for _, _, t in self._dynamic_tiles]
@@ -617,20 +609,17 @@ class Desktop(QWidget):
     # ── Top bar actions ────────────────────────────────────────────────────
 
     def _topbar_action(self, idx: int) -> None:
-        action_type = TOPBAR_ACTIONS[idx]["type"]
-        if action_type == "volume":
-            overlay = VolumeOverlay(self._gamepad)
-            self._volume_overlay = overlay
-            overlay.closed.connect(self._on_volume_closed)
-            return
-        if action_type not in SYSTEM_ACTION_SPECS:
-            return
-        if action_type == "hide_desktop":
-            self.pause()
-            return
-        question_src, cmd = SYSTEM_ACTION_SPECS[action_type]
-        question = QCoreApplication.translate("Kasual", question_src)
-        self._show_confirm(question=question, on_confirmed=lambda c=cmd: subprocess.Popen(c))
+        execute_action(
+            ACTION_DEFS[idx]["type"],
+            on_volume=self._open_volume_overlay,
+            on_hide_desktop=self.pause,
+            show_confirm=lambda q, cb: self._show_confirm(question=q, on_confirmed=cb),
+        )
+
+    def _open_volume_overlay(self) -> None:
+        overlay = VolumeOverlay(self._gamepad)
+        self._volume_overlay = overlay
+        overlay.closed.connect(self._on_volume_closed)
 
     def _on_volume_closed(self) -> None:
         self._volume_overlay = None
