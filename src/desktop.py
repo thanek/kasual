@@ -206,10 +206,11 @@ MONTHS_PL = [
 ]
 
 TOPBAR_ACTIONS = [
-    {"icon": "fa5s.volume-up",  "color": "#3b4252", "type": "volume"},
-    {"icon": "fa5s.moon",       "color": "#4c566a", "type": "sleep"},
-    {"icon": "fa5s.redo-alt",   "color": "#5e81ac", "type": "restart"},
-    {"icon": "fa5s.power-off",  "color": "#bf616a", "type": "shutdown"},
+    {"icon": "fa5s.volume-up", "color": "#3b4252", "type": "volume"},
+    {"icon": "fa5s.window-minimize", "color": "#d580ff", "type": "hide_desktop"},
+    {"icon": "fa5s.moon", "color": "#4c566a", "type": "sleep"},
+    {"icon": "fa5s.redo-alt", "color": "#5e81ac", "type": "restart"},
+    {"icon": "fa5s.power-off", "color": "#bf616a", "type": "shutdown"},
 ]
 
 TILE_W = 180
@@ -833,12 +834,22 @@ class Desktop(QWidget):
             overlay = VolumeOverlay(self._gamepad)
             self._volume_overlay = overlay
             overlay.closed.connect(self._on_volume_closed)
+        elif action_type == "hide_desktop":
+            self._ask_before_hide("Czy na pewno chcesz zminimalizować Pulpit?")
         elif action_type == "sleep":
             self._ask_system_action("Czy na pewno chcesz uśpić system?", ["systemctl", "suspend"])
         elif action_type == "restart":
             self._ask_system_action("Czy na pewno chcesz zrestartować komputer?", ["systemctl", "reboot"])
         elif action_type == "shutdown":
             self._ask_system_action("Czy na pewno chcesz wyłączyć komputer?", ["systemctl", "poweroff"])
+
+    def _ask_before_hide(self, question: str) -> None:
+        ConfirmDialog(
+            question=question,
+            on_confirmed=lambda: self.hide(),
+            on_cancelled=lambda: None,
+            gamepad=self._gamepad,
+        )
 
     def _ask_system_action(self, question: str, cmd: list[str]) -> None:
         if self._confirm_dialog is not None:
