@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+from collections.abc import Callable
 
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
@@ -165,17 +166,13 @@ class Desktop(QWidget):
 
     def request_close_running_app(self) -> None:
         """Pokaż dialog potwierdzenia zamknięcia działającej aplikacji."""
-        if self._confirm_dialog is not None:
-            return
         running = self._app_manager.running_idx()
         if running is None:
             return
         name = self._apps[running]["name"]
-        self._confirm_dialog = ConfirmDialog(
+        self._show_confirm(
             question=f'Czy na pewno chcesz zamknąć aplikację\n"{name}"?',
-            on_confirmed=self._do_close_app,
-            on_cancelled=self._on_close_cancelled,
-            gamepad=self._gamepad,
+            on_confirmed=self._app_manager.terminate,
         )
 
     def paintEvent(self, _) -> None:
@@ -563,37 +560,54 @@ class Desktop(QWidget):
                 self._request_close_kwin_window(win_id, title)
 
     def _request_close_kwin_window(self, win_id: str, title: str) -> None:
-        if self._confirm_dialog is not None:
-            return
         display = title if len(title) <= 40 else title[:39] + '…'
-        self._confirm_dialog = ConfirmDialog(
+        self._show_confirm(
             question=f'Czy na pewno chcesz zamknąć\n"{display}"?',
             on_confirmed=lambda: self._do_close_kwin_window(win_id),
-            on_cancelled=self._on_kwin_close_cancelled,
-            gamepad=self._gamepad,
+            on_cancelled=self._restore_desktop_view,
         )
 
     def _do_close_kwin_window(self, win_id: str) -> None:
-        self._confirm_dialog = None
         self._dyn_active = None
         self._wm.close_window(win_id)
         QTimer.singleShot(1000, self._wm.refresh_now)
+        self._restore_desktop_view()
+
+    def _restore_desktop_view(self) -> None:
         self._gamepad.push_handler(self._handle_pad)
         self.showFullScreen()
         self.activateWindow()
 
-    def _on_kwin_close_cancelled(self) -> None:
-        self._confirm_dialog = None
-        self._gamepad.push_handler(self._handle_pad)
-        self.showFullScreen()
-        self.activateWindow()
+    # ── Dialogi potwierdzenia ──────────────────────────────────────────────
 
-    def _on_close_cancelled(self) -> None:
-        self._confirm_dialog = None
+    def _show_confirm(
+        self,
+        question: str,
+        on_confirmed: Callable[[], None],
+        on_cancelled: Callable[[], None] | None = None,
+    ) -> None:
+        """Tworzy ConfirmDialog i zarządza cyklem życia self._confirm_dialog.
 
-    def _do_close_app(self) -> None:
-        self._confirm_dialog = None
-        self._app_manager.terminate()
+        Jeśli dialog jest już otwarty — ignoruje wywołanie. Callbacki
+        on_confirmed i on_cancelled są automatycznie opakowywane tak, by
+        wyczyścić self._confirm_dialog przed przekazaniem sterowania.
+        """
+        if self._confirm_dialog is not None:
+            return
+
+        def _wrap(cb: Callable[[], None] | None) -> Callable[[], None]:
+            def _inner() -> None:
+                self._confirm_dialog = None
+                if cb:
+                    cb()
+            return _inner
+
+        self._confirm_dialog = ConfirmDialog(
+            question=question,
+            on_confirmed=_wrap(on_confirmed),
+            on_cancelled=_wrap(on_cancelled),
+            gamepad=self._gamepad,
+        )
 
     # ── Akcje paska górnego ────────────────────────────────────────────────
 
@@ -604,23 +618,14 @@ class Desktop(QWidget):
             self._volume_overlay = overlay
             overlay.closed.connect(self._on_volume_closed)
             return
-        if action_type not in SYSTEM_ACTION_SPECS or self._confirm_dialog is not None:
+        if action_type not in SYSTEM_ACTION_SPECS:
             return
         question, cmd = SYSTEM_ACTION_SPECS[action_type]
         on_confirmed = (
             (lambda: self.hide()) if cmd is None
-            else (lambda c=cmd: self._do_system_action(c))
+            else (lambda c=cmd: subprocess.Popen(c))
         )
-        self._confirm_dialog = ConfirmDialog(
-            question=question,
-            on_confirmed=on_confirmed,
-            on_cancelled=self._on_close_cancelled,
-            gamepad=self._gamepad,
-        )
-
-    def _do_system_action(self, cmd: list[str]) -> None:
-        self._confirm_dialog = None
-        subprocess.Popen(cmd)
+        self._show_confirm(question=question, on_confirmed=on_confirmed)
 
     def _on_volume_closed(self) -> None:
         self._volume_overlay = None
