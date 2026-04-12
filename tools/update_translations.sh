@@ -9,7 +9,7 @@
 # Wymagania: pylupdate6, lrelease (pakiet qt6-tools lub pyqt6-dev-tools)
 
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")"/../
 
 LANGUAGES=("pl" "en")
 
@@ -37,5 +37,6 @@ for lang in "${LANGUAGES[@]}"; do
     fi
 done
 
+cd -
 echo
 echo "Gotowe."
