@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 import qtawesome as qta
+from PyQt6.QtCore import QCoreApplication
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
 
@@ -25,12 +26,12 @@ class SystemTray:
         self._tray.setToolTip("Kasual")
 
         menu = QMenu()
-        show_action = menu.addAction("Pokaż pulpit")
+        show_action = menu.addAction(QCoreApplication.translate("Kasual", "Show Desktop"))
         show_action.triggered.connect(on_show)
-        logs_action = menu.addAction("Logi")
+        logs_action = menu.addAction(QCoreApplication.translate("Kasual", "Logs"))
         logs_action.triggered.connect(on_logs)
         menu.addSeparator()
-        quit_action = menu.addAction("Zamknij")
+        quit_action = menu.addAction(QCoreApplication.translate("Kasual", "Quit"))
         quit_action.triggered.connect(on_quit)
 
         self._tray.setContextMenu(menu)

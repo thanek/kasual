@@ -41,7 +41,7 @@ class LogViewer(QWidget):
         self._log_file  = log_file
         self._last_size = -1
 
-        self.setWindowTitle("Display Daemon – Logi")
+        self.setWindowTitle(self.tr("Kasual – Logs"))
         self.resize(900, 500)
         self.setStyleSheet(_STYLE)
 
@@ -80,7 +80,7 @@ class LogViewer(QWidget):
         layout.addWidget(lbl)
         layout.addStretch()
 
-        btn = QPushButton("Wyczyść")
+        btn = QPushButton(self.tr("Clear"))
         btn.clicked.connect(self._clear_log)
         layout.addWidget(btn)
 

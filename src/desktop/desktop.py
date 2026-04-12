@@ -4,7 +4,7 @@ import subprocess
 from collections.abc import Callable
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt, QTimer, QSize, QEvent
+from PyQt6.QtCore import Qt, QCoreApplication, QLocale, QTimer, QSize, QEvent
 from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
@@ -27,15 +27,6 @@ from .window_icons import resolve_window_name, resolve_window_icon
 
 logger = logging.getLogger(__name__)
 
-
-DAYS_PL = [
-    "Poniedziałek", "Wtorek", "Środa", "Czwartek",
-    "Piątek", "Sobota", "Niedziela",
-]
-MONTHS_PL = [
-    "sty", "lut", "mar", "kwi", "maj", "cze",
-    "lip", "sie", "wrz", "paź", "lis", "gru",
-]
 
 TOPBAR_ACTIONS = [
     {"icon": "fa5s.volume-up", "color": "#3b4252", "type": "volume"},
@@ -172,7 +163,7 @@ class Desktop(QWidget):
             return
         name = self._apps[running]["name"]
         self._show_confirm(
-            question=f'Czy na pewno chcesz zamknąć aplikację\n"{name}"?',
+            question=self.tr('Are you sure you want to close\n"{0}"?').format(name),
             on_confirmed=self._app_manager.terminate,
         )
 
@@ -266,10 +257,12 @@ class Desktop(QWidget):
 
     def _update_clock(self) -> None:
         from datetime import datetime
-        now = datetime.now()
-        self._date_lbl.setText(
-            f"{DAYS_PL[now.weekday()]}  {now.day:02d} {MONTHS_PL[now.month - 1]}. {now.year}"
-        )
+        now    = datetime.now()
+        locale = QLocale.system()
+        # QLocale numeruje dni 1=poniedziałek … 7=niedziela, datetime.weekday() 0…6
+        day   = locale.dayName(now.weekday() + 1, QLocale.FormatType.LongFormat)
+        month = locale.monthName(now.month, QLocale.FormatType.ShortFormat)
+        self._date_lbl.setText(f"{day}  {now.day:02d} {month}. {now.year}")
         self._lbl_h.setText(now.strftime("%H"))
         self._lbl_m.setText(now.strftime("%M"))
         self._lbl_s.setText(now.strftime("%S"))
@@ -563,7 +556,7 @@ class Desktop(QWidget):
     def _request_close_kwin_window(self, win_id: str, title: str) -> None:
         display = title if len(title) <= 40 else title[:39] + '…'
         self._show_confirm(
-            question=f'Czy na pewno chcesz zamknąć\n"{display}"?',
+            question=self.tr('Are you sure you want to close\n"{0}"?').format(display),
             on_confirmed=lambda: self._do_close_kwin_window(win_id),
             on_cancelled=self._restore_desktop_view,
         )
@@ -621,7 +614,8 @@ class Desktop(QWidget):
             return
         if action_type not in SYSTEM_ACTION_SPECS:
             return
-        question, cmd = SYSTEM_ACTION_SPECS[action_type]
+        question_src, cmd = SYSTEM_ACTION_SPECS[action_type]
+        question = QCoreApplication.translate("Kasual", question_src)
         on_confirmed = (
             (lambda: self.hide()) if cmd is None
             else (lambda c=cmd: subprocess.Popen(c))

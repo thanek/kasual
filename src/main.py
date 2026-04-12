@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 import yaml
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QLocale, QTimer, QTranslator
 from PyQt6.QtWidgets import QApplication
 
 from app import Application
@@ -53,6 +53,14 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Kasual")
     app.setQuitOnLastWindowClosed(False)
+
+    locale_dir = str(Path(__file__).parent.parent / "locale")
+    translator = QTranslator(app)
+    if translator.load(QLocale.system(), "kasual", "_", locale_dir, ".qm"):
+        app.installTranslator(translator)
+        logger.info("Załadowano tłumaczenie: %s", QLocale.system().name())
+    else:
+        logger.info("Brak pliku .qm dla lokalizacji: %s", QLocale.system().name())
 
     gamepad = GamepadWatcher()
     wm      = KWinWindowManager()

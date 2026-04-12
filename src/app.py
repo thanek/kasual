@@ -2,6 +2,8 @@
 
 import logging
 
+from PyQt6.QtCore import QCoreApplication
+
 from desktop import Desktop
 from input.gamepad_watcher import GamepadWatcher
 from overlays.home_overlay import HomeOverlay, MenuItem
@@ -65,9 +67,9 @@ class Application:
 
         label = title if len(title) <= 22 else title[:21] + '…'
         extra: list[MenuItem] = [
-            {"label": f"  Powrót do {label}",  "icon": "fa5s.times",        "callback": cancel_cb},
-            {"label": f"  Zamknij {label}",     "icon": "fa5s.times-circle", "callback": close_cb},
-            {"label":  "  Powrót do Pulpitu",  "icon": "fa5s.home",         "callback": self._desktop.show_desktop},
+            {"label": "  " + QCoreApplication.translate("Kasual", "Return to {0}").format(label),  "icon": "fa5s.times",        "callback": cancel_cb},
+            {"label": "  " + QCoreApplication.translate("Kasual", "Close {0}").format(label),      "icon": "fa5s.times-circle", "callback": close_cb},
+            {"label": "  " + QCoreApplication.translate("Kasual", "Return to Desktop"),            "icon": "fa5s.home",         "callback": self._desktop.show_desktop},
         ]
         self._overlay.show_overlay(extra_items=extra)
 

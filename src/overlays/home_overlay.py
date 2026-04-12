@@ -3,7 +3,7 @@ import subprocess
 from typing import Callable, NotRequired, TypedDict
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QCoreApplication, QT_TRANSLATE_NOOP
 from PyQt6.QtGui import QColor, QPainter, QKeyEvent
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QLabel,
@@ -26,12 +26,14 @@ class MenuItem(TypedDict):
     callback: NotRequired[Callable]  # dla pozycji dynamicznych (extra_items)
 
 
+# Etykiety oznaczone QT_TRANSLATE_NOOP – wyodrębniane przez pylupdate6,
+# a tłumaczone dopiero przy budowaniu przycisków w _rebuild_buttons().
 _STATIC_ITEMS: list[MenuItem] = [
-    {"label": "  Powrót do Pulpitu",    "icon": "fa5s.times",          "action": "cancel"},
-    {"label": "  Minimalizuj Pulpit",   "icon": "fa5s.window-minimize", "action": "hide_desktop"},
-    {"label": "  Uśpij system",         "icon": "fa5s.moon",            "action": "sleep"},
-    {"label": "  Zrestartuj komputer",  "icon": "fa5s.redo-alt",        "action": "restart"},
-    {"label": "  Zamknij system",       "icon": "fa5s.power-off",       "action": "shutdown"},
+    {"label": QT_TRANSLATE_NOOP("Kasual", "Return to Desktop"),  "icon": "fa5s.times",          "action": "cancel"},
+    {"label": QT_TRANSLATE_NOOP("Kasual", "Minimize Desktop"),   "icon": "fa5s.window-minimize", "action": "hide_desktop"},
+    {"label": QT_TRANSLATE_NOOP("Kasual", "Sleep"),              "icon": "fa5s.moon",            "action": "sleep"},
+    {"label": QT_TRANSLATE_NOOP("Kasual", "Restart"),            "icon": "fa5s.redo-alt",        "action": "restart"},
+    {"label": QT_TRANSLATE_NOOP("Kasual", "Shut Down"),          "icon": "fa5s.power-off",       "action": "shutdown"},
 ]
 
 
@@ -76,7 +78,7 @@ class HomeOverlay(QWidget):
         self._card_layout.setContentsMargins(32, 32, 32, 32)
         self._card_layout.setSpacing(8)
 
-        title = QLabel("Menu")
+        title = QLabel(self.tr("Menu"))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
             "font-size: 28px; color: #88c0d0; font-weight: bold;"
@@ -156,7 +158,14 @@ class HomeOverlay(QWidget):
         self._items = list(extra_items) if extra_items else list(_STATIC_ITEMS)
 
         for item in self._items:
-            btn = QPushButton(item["label"])
+            # Elementy statyczne mają etykiety oznaczone QT_TRANSLATE_NOOP – tłumaczymy tutaj.
+            # Elementy dynamiczne (callback) mają już gotowe, sformatowane etykiety.
+            label = (
+                "  " + QCoreApplication.translate("Kasual", item["label"])
+                if "action" in item
+                else item["label"]
+            )
+            btn = QPushButton(label)
             btn.setMinimumHeight(62)
             btn.setIcon(qta.icon(item["icon"], color="white"))
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -215,7 +224,8 @@ class HomeOverlay(QWidget):
 
         if action not in SYSTEM_ACTION_SPECS:
             return
-        question, cmd = SYSTEM_ACTION_SPECS[action]
+        question_src, cmd = SYSTEM_ACTION_SPECS[action]
+        question = QCoreApplication.translate("Kasual", question_src)
         on_confirmed = (
             self._on_hide_desktop if cmd is None
             else (lambda c=cmd: subprocess.Popen(c))
