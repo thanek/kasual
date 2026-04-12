@@ -59,6 +59,10 @@ apps:
 
 Kasual is free software licensed under the **GNU General Public License v3.0 or later**. See [LICENSE](LICENSE) for details.
 
+## 🎵 Credits
+
+This project uses the **Classic UI SFX** pack by `Chhoff`, which can be found [here](https://chhoffmusic.itch.io/classic-ui-sfx).
+
 ## 🤖 AI notice
 
 This project was developed with the assistance of AI.
