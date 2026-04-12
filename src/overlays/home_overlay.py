@@ -11,11 +11,11 @@ from PyQt6.QtGui import QColor, QPainter, QKeyEvent
 
 import qtawesome as qta
 
-from gamepad_watcher import GamepadWatcher
-from confirm_dialog import ConfirmDialog
-from styles import Styles
-from system_actions import SYSTEM_ACTION_SPECS
-import sound_player
+from input.gamepad_watcher import GamepadWatcher
+from .confirm_dialog import ConfirmDialog
+from ui.styles import Styles
+from system.system_actions import SYSTEM_ACTION_SPECS
+from audio import sound_player
 
 logger = logging.getLogger(__name__)
 

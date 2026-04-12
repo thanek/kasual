@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 
 def _make_manager():
-    from app_manager import AppManager
+    from system.app_manager import AppManager
     return AppManager()
 
 
@@ -83,8 +83,8 @@ class TestIsRunning:
 class TestLaunch:
     def _launch(self, am, idx=0, command="echo", args=None):
         proc = _running_proc()
-        with patch("app_manager.subprocess.Popen", return_value=proc) as popen, \
-             patch("app_manager.threading.Thread"):
+        with patch("system.app_manager.subprocess.Popen", return_value=proc) as popen, \
+             patch("system.app_manager.threading.Thread"):
             am.launch(idx, {"command": command, "args": args or []})
         return popen, proc
 
@@ -101,8 +101,8 @@ class TestLaunch:
     def test_missing_args_key_defaults_to_empty(self, qapp):
         am = _make_manager()
         proc = _running_proc()
-        with patch("app_manager.subprocess.Popen", return_value=proc) as popen, \
-             patch("app_manager.threading.Thread"):
+        with patch("system.app_manager.subprocess.Popen", return_value=proc) as popen, \
+             patch("system.app_manager.threading.Thread"):
             am.launch(0, {"command": "cmd"})
         assert popen.call_args[0][0] == ["cmd"]
 
@@ -117,15 +117,15 @@ class TestLaunch:
         am = _make_manager()
         am._process = _running_proc()
         am._running_idx = 0
-        with patch("app_manager.subprocess.Popen") as popen:
+        with patch("system.app_manager.subprocess.Popen") as popen:
             am.launch(1, {"command": "echo"})
         popen.assert_not_called()
 
     def test_starts_monitor_thread(self, qapp):
         am = _make_manager()
         proc = _running_proc()
-        with patch("app_manager.subprocess.Popen", return_value=proc), \
-             patch("app_manager.threading.Thread") as mock_thread:
+        with patch("system.app_manager.subprocess.Popen", return_value=proc), \
+             patch("system.app_manager.threading.Thread") as mock_thread:
             am.launch(0, {"command": "echo"})
         mock_thread.assert_called_once()
         mock_thread.return_value.start.assert_called_once()
@@ -167,9 +167,9 @@ class TestTerminate:
         am = _make_manager()
         am._process = _running_proc(pid=1234)
         am._running_idx = 0
-        with patch("app_manager.os.getpgid", return_value=1234), \
-             patch("app_manager.os.killpg") as mock_killpg, \
-             patch("app_manager.QTimer.singleShot"):
+        with patch("system.app_manager.os.getpgid", return_value=1234), \
+             patch("system.app_manager.os.killpg") as mock_killpg, \
+             patch("system.app_manager.QTimer.singleShot"):
             am.terminate()
         mock_killpg.assert_called_once_with(1234, signal.SIGTERM)
 
@@ -177,9 +177,9 @@ class TestTerminate:
         am = _make_manager()
         am._process = _running_proc()
         am._running_idx = 0
-        with patch("app_manager.os.getpgid", return_value=999), \
-             patch("app_manager.os.killpg"), \
-             patch("app_manager.QTimer.singleShot") as mock_timer:
+        with patch("system.app_manager.os.getpgid", return_value=999), \
+             patch("system.app_manager.os.killpg"), \
+             patch("system.app_manager.QTimer.singleShot") as mock_timer:
             am.terminate()
         mock_timer.assert_called_once_with(3000, am._force_kill)
 
@@ -187,7 +187,7 @@ class TestTerminate:
         am = _make_manager()
         am._process = _exited_proc()
         am._running_idx = 0
-        with patch("app_manager.os.killpg") as mock_killpg:
+        with patch("system.app_manager.os.killpg") as mock_killpg:
             am.terminate()
         mock_killpg.assert_not_called()
 
@@ -197,8 +197,8 @@ class TestForceKill:
         am = _make_manager()
         am._process = _running_proc(pid=5678)
         am._running_idx = 0
-        with patch("app_manager.os.getpgid", return_value=5678), \
-             patch("app_manager.os.killpg") as mock_killpg:
+        with patch("system.app_manager.os.getpgid", return_value=5678), \
+             patch("system.app_manager.os.killpg") as mock_killpg:
             am._force_kill()
         mock_killpg.assert_called_once_with(5678, signal.SIGKILL)
 
@@ -206,13 +206,13 @@ class TestForceKill:
         am = _make_manager()
         am._process = _exited_proc()
         am._running_idx = 0
-        with patch("app_manager.os.killpg") as mock_killpg:
+        with patch("system.app_manager.os.killpg") as mock_killpg:
             am._force_kill()
         mock_killpg.assert_not_called()
 
     def test_noop_when_no_process(self, qapp):
         am = _make_manager()
-        with patch("app_manager.os.killpg") as mock_killpg:
+        with patch("system.app_manager.os.killpg") as mock_killpg:
             am._force_kill()
         mock_killpg.assert_not_called()
 

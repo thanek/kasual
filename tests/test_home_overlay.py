@@ -12,7 +12,7 @@ Testujemy:
 import pytest
 from unittest.mock import patch
 
-from home_overlay import HomeOverlay, _STATIC_ITEMS
+from overlays.home_overlay import HomeOverlay, _STATIC_ITEMS
 
 
 def _make_overlay(mock_gamepad, on_hide_desktop=None):
@@ -157,7 +157,7 @@ class TestActivate:
         overlay = _shown(mock_gamepad)
         action_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == action)
         overlay._index = action_idx
-        with patch("home_overlay.ConfirmDialog") as mock_dlg:
+        with patch("overlays.home_overlay.ConfirmDialog") as mock_dlg:
             overlay._handle_pad("select")
         mock_dlg.assert_called_once()
 
@@ -166,7 +166,7 @@ class TestActivate:
         overlay = _shown(mock_gamepad)
         action_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == action)
         overlay._index = action_idx
-        with patch("home_overlay.ConfirmDialog"):
+        with patch("overlays.home_overlay.ConfirmDialog"):
             overlay._handle_pad("select")
         assert not overlay.isVisible()
 
@@ -174,7 +174,7 @@ class TestActivate:
         overlay = _shown(mock_gamepad, on_hide_desktop=lambda: None)
         hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
         overlay._index = hide_idx
-        with patch("home_overlay.ConfirmDialog") as mock_dlg:
+        with patch("overlays.home_overlay.ConfirmDialog") as mock_dlg:
             overlay._handle_pad("select")
         mock_dlg.assert_called_once()
 
@@ -182,7 +182,7 @@ class TestActivate:
         overlay = _shown(mock_gamepad, on_hide_desktop=lambda: None)
         hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
         overlay._index = hide_idx
-        with patch("home_overlay.ConfirmDialog"):
+        with patch("overlays.home_overlay.ConfirmDialog"):
             overlay._handle_pad("select")
         assert not overlay.isVisible()
 

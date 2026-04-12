@@ -8,12 +8,12 @@ from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QTimer
 
-from gamepad_watcher import GamepadWatcher
+from input.gamepad_watcher import GamepadWatcher
 from desktop import Desktop
-from home_overlay import HomeOverlay
-from log_viewer import LogViewer
-from window_manager import KWinWindowManager
-import sound_player
+from overlays.home_overlay import HomeOverlay
+from ui.log_viewer import LogViewer
+from system.window_manager import KWinWindowManager
+from audio import sound_player
 
 logger = logging.getLogger(__name__)
 

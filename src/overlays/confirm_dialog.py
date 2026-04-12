@@ -8,10 +8,10 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QKeyEvent
 
-from gamepad_watcher import GamepadWatcher
-from base_overlay import BaseOverlay
-from styles import Styles
-import sound_player
+from input.gamepad_watcher import GamepadWatcher
+from .base_overlay import BaseOverlay
+from ui.styles import Styles
+from audio import sound_player
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ from PyQt6.QtGui import QColor
 
 import qtawesome as qta
 
-from styles import Styles
+from ui.styles import Styles
 
 TILE_W = 180
 TILE_H = 200

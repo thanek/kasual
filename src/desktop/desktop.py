@@ -13,18 +13,18 @@ from PyQt6.QtGui import QPainter, QColor, QKeyEvent
 
 import qtawesome as qta
 
-from gamepad_watcher import GamepadWatcher
-from app_manager import AppManager
-from base_overlay import BaseOverlay
-from confirm_dialog import ConfirmDialog
-from volume_overlay import VolumeOverlay
-from window_manager import KWinWindowManager
-from styles import Styles
-from system_actions import SYSTEM_ACTION_SPECS
+from input.gamepad_watcher import GamepadWatcher
+from system.app_manager import AppManager
+from overlays.base_overlay import BaseOverlay
+from overlays.confirm_dialog import ConfirmDialog
+from overlays.volume_overlay import VolumeOverlay
+from system.window_manager import KWinWindowManager
+from ui.styles import Styles
+from system.system_actions import SYSTEM_ACTION_SPECS
 from .wallpaper import load_kde_wallpaper
 from .window_icons import resolve_window_name, resolve_window_icon
 from .app_tile import AppTile, TILE_W, TILE_H
-import sound_player
+from audio import sound_player
 
 logger = logging.getLogger(__name__)
 

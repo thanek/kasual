@@ -10,9 +10,9 @@ from PyQt6.QtGui import QColor, QKeyEvent
 
 import qtawesome as qta
 
-from gamepad_watcher import GamepadWatcher
-from base_overlay import BaseOverlay
-import sound_player
+from input.gamepad_watcher import GamepadWatcher
+from .base_overlay import BaseOverlay
+from audio import sound_player
 
 logger = logging.getLogger(__name__)
 
