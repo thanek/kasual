@@ -3,28 +3,27 @@ import os
 import subprocess
 from collections.abc import Callable
 
+import qtawesome as qta
+from PyQt6.QtCore import Qt, QTimer, QSize, QEvent
+from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
     QScrollArea, QLabel,
     QApplication,
 )
-from PyQt6.QtCore import Qt, QTimer, QSize, QEvent, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QKeyEvent
 
-import qtawesome as qta
-
+from audio import sound_player
 from input.gamepad_watcher import GamepadWatcher
-from system.app_manager import AppManager
 from overlays.base_overlay import BaseOverlay
 from overlays.confirm_dialog import ConfirmDialog
 from overlays.volume_overlay import VolumeOverlay
+from system.app_manager import AppManager
+from system.system_actions import SYSTEM_ACTION_SPECS
 from system.window_manager import KWinWindowManager
 from ui import styles
-from system.system_actions import SYSTEM_ACTION_SPECS
+from .app_tile import AppTile, TILE_H
 from .wallpaper import load_kde_wallpaper
 from .window_icons import resolve_window_name, resolve_window_icon
-from .app_tile import AppTile, TILE_W, TILE_H
-from audio import sound_player
 
 logger = logging.getLogger(__name__)
 

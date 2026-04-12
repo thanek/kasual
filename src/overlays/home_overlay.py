@@ -2,20 +2,19 @@ import logging
 import subprocess
 from typing import Callable, NotRequired, TypedDict
 
+import qtawesome as qta
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QPainter, QKeyEvent
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QLabel,
     QGraphicsDropShadowEffect,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPainter, QKeyEvent
 
-import qtawesome as qta
-
-from input.gamepad_watcher import GamepadWatcher
-from .confirm_dialog import ConfirmDialog
-from ui import styles
-from system.system_actions import SYSTEM_ACTION_SPECS
 from audio import sound_player
+from input.gamepad_watcher import GamepadWatcher
+from system.system_actions import SYSTEM_ACTION_SPECS
+from ui import styles
+from .confirm_dialog import ConfirmDialog
 
 logger = logging.getLogger(__name__)
 

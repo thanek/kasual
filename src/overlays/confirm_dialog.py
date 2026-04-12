@@ -1,17 +1,17 @@
 import logging
 from typing import Callable
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QKeyEvent
 from PyQt6.QtWidgets import (
     QPushButton, QLabel, QHBoxLayout, QVBoxLayout,
     QGraphicsDropShadowEffect, QWidget,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QKeyEvent
 
-from input.gamepad_watcher import GamepadWatcher
-from .base_overlay import BaseOverlay
-from ui import styles
 from audio import sound_player
+from input.gamepad_watcher import GamepadWatcher
+from ui import styles
+from .base_overlay import BaseOverlay
 
 logger = logging.getLogger(__name__)
 
