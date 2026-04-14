@@ -34,6 +34,16 @@
         <source>Close</source>
         <translation>Zamknij</translation>
     </message>
+    <message>
+        <location filename="../src/desktop/desktop.py" line="551" />
+        <source>Restore</source>
+        <translation>Przywróć</translation>
+    </message>
+    <message>
+        <location filename="../src/desktop/desktop.py" line="555" />
+        <source>Launch</source>
+        <translation>Uruchom</translation>
+    </message>
 </context><context>
     <name>HomeOverlay</name>
     <message>

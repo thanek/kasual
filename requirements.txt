@@ -4,3 +4,4 @@ PyYAML
 evdev
 pytest
 pytest-qt
+pyqt6-webengine

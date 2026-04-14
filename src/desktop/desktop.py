@@ -472,7 +472,7 @@ class Desktop(QWidget):
             elif event == "select":
                 self._on_tile_clicked(self._tile_index)
             elif event == "close":
-                self._show_tile_close_popover()
+                self._show_tile_popover()
 
         elif self._focus_mode == "topbar":
             if event == "left":
@@ -541,29 +541,36 @@ class Desktop(QWidget):
 
     # ── Closing an application ─────────────────────────────────────────────
 
-    def _show_tile_close_popover(self) -> None:
-        """Show a popover with close options above the focused tile."""
+    def _show_tile_popover(self) -> None:
+        """Show a context popover above the focused tile."""
         idx = self._tile_index
         n_static = len(self._tiles)
+        options: list[tuple[str, object]] = []
 
-        # Only show when the tile has something closeable
         if idx < n_static:
-            if self._app_manager.running_idx() != idx:
-                return
+            running = self._app_manager.running_idx()
+            if running == idx:
+                options.append((self.tr("Restore"), lambda: self._on_tile_clicked(idx)))
+                options.append((self.tr("Close"),   self._close_focused_tile))
+            elif running is None:
+                options.append((self.tr("Launch"),  lambda: self._on_tile_clicked(idx)))
+            else:
+                return  # another app is running — nothing useful to show
         else:
             dyn_idx = idx - n_static
             if dyn_idx >= len(self._dynamic_tiles):
                 return
+            win_id, _, _ = self._dynamic_tiles[dyn_idx]
+            options.append((self.tr("Restore"), lambda: self._on_dynamic_tile_clicked(win_id)))
+            options.append((self.tr("Close"),   self._close_focused_tile))
 
         all_tiles: list[AppTile] = self._tiles + [t for _, _, t in self._dynamic_tiles]
-        tile = all_tiles[idx]
-
         popover = TilePopoverMenu(
-            options=[(self.tr("Close"), self._close_focused_tile)],
+            options=options,
             gamepad=self._gamepad,
             parent=self,
         )
-        popover.show_above(tile)
+        popover.show_above(all_tiles[idx])
 
     def _close_focused_tile(self) -> None:
         """Close the application represented by the currently focused tile."""

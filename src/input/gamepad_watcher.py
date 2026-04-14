@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 STICK_THRESHOLD = 10000   # analog axis range: -32768..32767
 STICK_RESET     = 6000    # hysteresis — below this value the axis is "centered"
 
-VIRTUAL_DEVICE_NAME = "kasual-vpad"
+VIRTUAL_DEVICE_NAME   = "kasual-vpad"
+BTN_MODE_HOLD_SECONDS = 1.0   # how long BTN_MODE must be held to trigger the menu
 
 
 class GamepadWatcher(QObject):
@@ -45,6 +46,8 @@ class GamepadWatcher(QObject):
         self._handlers: list[Callable[[str], None]] = []
         self._lock = threading.Lock()
         self._suppress_uinput: bool = False   # True when Desktop is active
+        self._btn_mode_timer: threading.Timer | None = None
+        self._btn_mode_long:  bool                  = False   # True once hold threshold passed
         self._raw.connect(self._dispatch)
         threading.Thread(target=self._loop, daemon=True, name="gamepad-watcher").start()
 
@@ -69,6 +72,11 @@ class GamepadWatcher(QObject):
 
 
     # ── Internal ───────────────────────────────────────────────────────────
+
+    def _on_btn_mode_long(self) -> None:
+        """Called from threading.Timer after BTN_MODE_HOLD_SECONDS — triggers Kasual menu."""
+        self._btn_mode_long = True
+        self.btn_mode_pressed.emit()
 
     def _dispatch(self, event: str) -> None:
         with self._lock:
@@ -133,9 +141,35 @@ class GamepadWatcher(QObject):
                                 uinput.syn()
 
                         elif ev.type == ecodes.EV_KEY and ev.code == ecodes.BTN_MODE:
-                            # BTN_MODE: capture locally, do NOT forward to virtual gamepad
+                            # BTN_MODE is never forwarded to virtual gamepad in real-time.
+                            # Short press  → synthetic press+release sent on release (Steam reacts).
+                            # Long press   → btn_mode_pressed signal (Kasual menu); nothing to Steam.
                             if ev.value == 1:
-                                self.btn_mode_pressed.emit()
+                                self._btn_mode_long = False
+                                with self._lock:
+                                    kasual_active = self._suppress_uinput
+                                if kasual_active:
+                                    # Kasual UI is visible — open menu immediately
+                                    self._on_btn_mode_long()
+                                else:
+                                    # App/game active — wait for hold threshold
+                                    self._btn_mode_timer = threading.Timer(
+                                        BTN_MODE_HOLD_SECONDS, self._on_btn_mode_long
+                                    )
+                                    self._btn_mode_timer.start()
+                            elif ev.value == 0:
+                                if self._btn_mode_timer is not None:
+                                    self._btn_mode_timer.cancel()
+                                    self._btn_mode_timer = None
+                                if not self._btn_mode_long and uinput:
+                                    # Short press — forward to virtual gamepad now
+                                    with self._lock:
+                                        suppress_now = self._suppress_uinput
+                                    if not suppress_now:
+                                        uinput.write(ecodes.EV_KEY, ecodes.BTN_MODE, 1)
+                                        uinput.syn()
+                                        uinput.write(ecodes.EV_KEY, ecodes.BTN_MODE, 0)
+                                        uinput.syn()
 
                         else:
                             # Forward to virtual gamepad (unless our UI is active)
@@ -147,6 +181,10 @@ class GamepadWatcher(QObject):
                             self._translate(ev, held, stick, pending)
 
                 except OSError:
+                    if self._btn_mode_timer is not None:
+                        self._btn_mode_timer.cancel()
+                        self._btn_mode_timer = None
+                    self._btn_mode_long = False
                     logger.info("Gamepad disconnected")
                     device = None
                     was_connected = False
