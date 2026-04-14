@@ -46,8 +46,9 @@ class GamepadWatcher(QObject):
         self._handlers: list[Callable[[str], None]] = []
         self._lock = threading.Lock()
         self._suppress_uinput: bool = False   # True when Desktop is active
-        self._btn_mode_timer: threading.Timer | None = None
-        self._btn_mode_long:  bool                  = False   # True once hold threshold passed
+        self._btn_mode_timer:   threading.Timer | None = None
+        self._btn_mode_long:    bool                  = False   # True once hold threshold passed
+        self._app_btn_mode_trigger: str               = "BTN_MODE_CLICK"
         self._raw.connect(self._dispatch)
         threading.Thread(target=self._loop, daemon=True, name="gamepad-watcher").start()
 
@@ -69,6 +70,15 @@ class GamepadWatcher(QObject):
     def inject(self, event: str) -> None:
         """Inject a navigation event (e.g. from keyboard) into the active handler."""
         self._dispatch(event)
+
+    def set_app_btn_mode_trigger(self, trigger: str) -> None:
+        """Set the BTN_MODE recall trigger for the currently active app.
+
+        trigger: "BTN_MODE_CLICK" — fire immediately on press (default)
+                 "BTN_MODE_HOLD_1S" — require BTN_MODE_HOLD_SECONDS hold
+        """
+        with self._lock:
+            self._app_btn_mode_trigger = trigger
 
 
     # ── Internal ───────────────────────────────────────────────────────────
@@ -148,11 +158,11 @@ class GamepadWatcher(QObject):
                                 self._btn_mode_long = False
                                 with self._lock:
                                     kasual_active = self._suppress_uinput
-                                if kasual_active:
-                                    # Kasual UI is visible — open menu immediately
+                                    trigger       = self._app_btn_mode_trigger
+                                if kasual_active or trigger == "BTN_MODE_CLICK":
                                     self._on_btn_mode_long()
                                 else:
-                                    # App/game active — wait for hold threshold
+                                    # BTN_MODE_HOLD_1S — wait for hold threshold
                                     self._btn_mode_timer = threading.Timer(
                                         BTN_MODE_HOLD_SECONDS, self._on_btn_mode_long
                                     )

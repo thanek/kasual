@@ -36,11 +36,9 @@ class AppTile(QWidget):
         self._btn.setStyleSheet(styles.tile_normal(color))
         self._btn.clicked.connect(self.clicked)
 
+        self._closing = False
         self._dot = QLabel(self)
         self._dot.setFixedSize(14, 14)
-        self._dot.setStyleSheet(
-            "background-color: #a3be8c; border-radius: 7px; border: 2px solid #0b140e;"
-        )
         self._dot.move(TILE_W - 22, 8)
         self._dot.hide()
 
@@ -67,4 +65,19 @@ class AppTile(QWidget):
             self._btn.setGraphicsEffect(shadow)
 
     def set_running(self, running: bool) -> None:
-        self._dot.setVisible(running)
+        if not running:
+            self._closing = False
+            self._dot.hide()
+        elif not self._closing:
+            self._dot.setStyleSheet(
+                "background-color: #a3be8c; border-radius: 7px; border: 2px solid #0b140e;"
+            )
+            self._dot.show()
+        # running + closing: keep orange dot unchanged until process exits
+
+    def set_closing(self) -> None:
+        self._closing = True
+        self._dot.setStyleSheet(
+            "background-color: #d08770; border-radius: 7px; border: 2px solid #0b140e;"
+        )
+        self._dot.show()

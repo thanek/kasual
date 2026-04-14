@@ -5,6 +5,7 @@ apps:
       - "steam://open/bigpicture"
     icon: fa5b.steam
     color: "#1b2838"
+    recall_menu_trigger: BTN_MODE_HOLD_1S
 
   - name: Heroic
     command: heroic
@@ -12,18 +13,21 @@ apps:
       - "--fullscreen"
     icon: fa5s.gamepad
     color: "#c0392b"
+    recall_menu_trigger: BTN_MODE_CLICK
 
   - name: YouTube
     command: apps/yt/yt.sh
     args: []
     icon: fa5b.youtube
     color: "#c0392b"
+    recall_menu_trigger: BTN_MODE_CLICK
 
   - name: Pliki
     command: apps/file_browser/file_browser.sh
     args: []
     icon: fa5s.folder-open
     color: "#5e81ac"
+    recall_menu_trigger: BTN_MODE_CLICK
 
   - name: Firefox
     command: firefox
@@ -31,3 +35,4 @@ apps:
       - "--kiosk"
     icon: fa5b.firefox-browser
     color: "#e67e22"
+    recall_menu_trigger: BTN_MODE_CLICK

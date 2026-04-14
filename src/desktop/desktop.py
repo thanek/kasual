@@ -148,6 +148,10 @@ class Desktop(QWidget):
 
     def restore_app(self) -> None:
         """Return to the running application — hide Desktop and release gamepad to the app."""
+        running = self._app_manager.running_idx()
+        if running is not None:
+            trigger = self._apps[running].get("recall_menu_trigger", "BTN_MODE_CLICK")
+            self._gamepad.set_app_btn_mode_trigger(trigger)
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
 
@@ -157,9 +161,18 @@ class Desktop(QWidget):
         if running is None:
             return
         name = self._apps[running]["name"]
+
+        def _confirmed() -> None:
+            if running is not None:
+                self._tiles[running].set_closing()
+            self._gamepad.push_handler(self._handle_pad)
+            self.showFullScreen()
+            self.activateWindow()
+            self._app_manager.terminate()
+
         self._show_confirm(
             question=self.tr('Are you sure you want to close\n"{0}"?').format(name),
-            on_confirmed=self._app_manager.terminate,
+            on_confirmed=_confirmed,
         )
 
     def paintEvent(self, _) -> None:
@@ -390,6 +403,7 @@ class Desktop(QWidget):
         self._dyn_active = (window_id, title)
         self._wm.activate_window(window_id)
         sound_player.play("select")
+        self._gamepad.set_app_btn_mode_trigger("BTN_MODE_CLICK")
         self._gamepad.pop_handler(self._handle_pad)
         self.hide()
 
@@ -507,6 +521,8 @@ class Desktop(QWidget):
             else:
                 logger.info("Launching application %d", idx)
                 sound_player.play("select")
+                trigger = self._apps[idx].get("recall_menu_trigger", "BTN_MODE_CLICK")
+                self._gamepad.set_app_btn_mode_trigger(trigger)
                 self._gamepad.pop_handler(self._handle_pad)
                 self._app_manager.launch(idx, self._apps[idx])
                 # self.hide()
@@ -535,9 +551,11 @@ class Desktop(QWidget):
             self._confirm_dialog = None
         self._refresh_tile_status()
         self._wm.refresh_now()
-        self._gamepad.push_handler(self._handle_pad)
-        self.showFullScreen()
-        self.activateWindow()
+        if not self.isVisible():
+            # App exited on its own (crash / self-close) — show desktop now
+            self._gamepad.push_handler(self._handle_pad)
+            self.showFullScreen()
+            self.activateWindow()
 
     # ── Closing an application ─────────────────────────────────────────────
 
