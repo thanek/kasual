@@ -8,11 +8,6 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
 
 
-def _make_icon(connected: bool) -> QIcon:
-    color = "#88c0d0" if connected else "#555555"
-    return qta.icon("fa5s.gamepad", color=color)
-
-
 class SystemTray:
     """Encapsulates QSystemTrayIcon, context menu, and icon logic."""
 
@@ -22,7 +17,7 @@ class SystemTray:
         on_logs:  Callable[[], None],
         on_quit:  Callable[[], None],
     ) -> None:
-        self._tray = QSystemTrayIcon(_make_icon(connected=False))
+        self._tray = QSystemTrayIcon(self._make_icon(connected=False))
         self._tray.setToolTip("Kasual")
 
         menu = QMenu()
@@ -42,6 +37,11 @@ class SystemTray:
         )
         self._tray.show()
 
+    @staticmethod
+    def _make_icon(connected: bool) -> QIcon:
+        color = "#88c0d0" if connected else "#555555"
+        return qta.icon("fa5s.gamepad", color=color)
+
     def set_connected(self, connected: bool) -> None:
         """Updates the icon based on the gamepad connection state."""
-        self._tray.setIcon(_make_icon(connected))
+        self._tray.setIcon(self._make_icon(connected))
