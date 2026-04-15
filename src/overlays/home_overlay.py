@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 
 from audio import sound_player
 from input.gamepad_watcher import GamepadWatcher
-from system.system_actions import execute_action, ACTION_DEFS
+from system.system_actions import ACTIONS, ActionDeps, run_action
 from ui import styles
 from .confirm_dialog import ConfirmDialog
 
@@ -32,13 +32,11 @@ _CANCEL_ITEM: MenuItem = {
 }
 
 def _build_static_items() -> list[MenuItem]:
-    volume_item = next(
-        {"label": d["label"], "icon": d["icon"], "action": d["type"]}
-        for d in ACTION_DEFS if d["type"] == "volume"
-    )
+    volume_item = {"label": ACTIONS["volume"]["label"], "icon": ACTIONS["volume"]["icon"], "action": "volume"}
     rest = [
-        {"label": d["label"], "icon": d["icon"], "action": d["type"]}
-        for d in ACTION_DEFS if d["type"] != "volume"
+        {"label": spec["label"], "icon": spec["icon"], "action": action_type}
+        for action_type, spec in ACTIONS.items()
+        if action_type != "volume"
     ]
     return [volume_item, _CANCEL_ITEM] + rest
 
@@ -56,12 +54,11 @@ class HomeOverlay(QWidget):
         overlay.hide_overlay()                    # hide
     """
 
-    def __init__(self, gamepad: GamepadWatcher, on_hide_desktop: Callable | None = None, on_volume: Callable | None = None, parent=None):
+    def __init__(self, gamepad: GamepadWatcher, action_deps: ActionDeps | None = None, parent=None):
         super().__init__(parent)
-        self._gamepad          = gamepad
-        self._on_hide_desktop  = on_hide_desktop
-        self._on_volume        = on_volume
-        self._index            = 0
+        self._gamepad      = gamepad
+        self._action_deps  = action_deps
+        self._index        = 0
         self._items:     list[MenuItem]    = []
         self._buttons:   list[QPushButton] = []
         self._on_cancel  = None
@@ -230,10 +227,9 @@ class HomeOverlay(QWidget):
             return
 
         self.hide_overlay()
-        execute_action(
+        run_action(
             action,
-            on_volume=self._on_volume,
-            on_hide_desktop=self._on_hide_desktop,
+            self._action_deps,
             show_confirm=lambda q, cb: ConfirmDialog(
                 question=q,
                 on_confirmed=cb,

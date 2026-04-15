@@ -19,7 +19,7 @@ from overlays.info_dialog import InfoDialog
 from overlays.tile_popover import TilePopoverMenu
 from overlays.volume_overlay import VolumeOverlay
 from system.app_manager import AppManager
-from system.system_actions import execute_action, ACTION_DEFS
+from system.system_actions import ACTIONS, ActionDeps, run_action
 from system.window_manager import KWinWindowManager
 from ui import styles
 from .app_tile import AppTile, TILE_H
@@ -202,7 +202,7 @@ class Desktop(QWidget):
 
         BTN_SIZE    = 56
         BTN_SPACING = 14
-        BTNS_TOTAL  = len(ACTION_DEFS) * BTN_SIZE + (len(ACTION_DEFS) - 1) * BTN_SPACING
+        BTNS_TOTAL  = len(ACTIONS) * BTN_SIZE + (len(ACTIONS) - 1) * BTN_SPACING
 
         spacer = QWidget()
         spacer.setFixedWidth(BTNS_TOTAL)
@@ -245,13 +245,13 @@ class Desktop(QWidget):
         btn_layout = QHBoxLayout(btn_area)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(BTN_SPACING)
-        for i, action in enumerate(ACTION_DEFS):
+        for i, (action_type, action) in enumerate(ACTIONS.items()):
             btn = QPushButton()
             btn.setFixedSize(BTN_SIZE, BTN_SIZE)
             btn.setIcon(qta.icon(action["icon"], color="white"))
             btn.setIconSize(QSize(24, 24))
             btn.setStyleSheet(styles.topbar_normal(action["color"]))
-            btn.clicked.connect(lambda _, idx=i: self._topbar_action(idx))
+            btn.clicked.connect(lambda _, t=action_type: self._topbar_action(t))
             btn_layout.addWidget(btn)
             self._topbar_buttons.append(btn)
         layout.addWidget(btn_area)
@@ -433,7 +433,7 @@ class Desktop(QWidget):
             if self._focus_mode == "topbar" and i == self._topbar_index:
                 btn.setStyleSheet(styles.topbar_selected())
             else:
-                btn.setStyleSheet(styles.topbar_normal(ACTION_DEFS[i]["color"]))
+                btn.setStyleSheet(styles.topbar_normal(list(ACTIONS.values())[i]["color"]))
 
         if in_tiles:
             all_tiles: list[AppTile] = self._tiles + [t for _, _, t in self._dynamic_tiles]
@@ -658,11 +658,10 @@ class Desktop(QWidget):
 
     # ── Top bar actions ────────────────────────────────────────────────────
 
-    def _topbar_action(self, idx: int) -> None:
-        execute_action(
-            ACTION_DEFS[idx]["type"],
-            on_volume=self._open_volume_overlay,
-            on_hide_desktop=self.pause,
+    def _topbar_action(self, action_type: str) -> None:
+        run_action(
+            action_type,
+            ActionDeps(desktop=self),
             show_confirm=lambda q, cb: self._show_confirm(question=q, on_confirmed=cb),
         )
 

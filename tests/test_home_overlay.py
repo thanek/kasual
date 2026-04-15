@@ -10,18 +10,19 @@ Testujemy:
 """
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from overlays.home_overlay import HomeOverlay, _build_static_items
+from system.system_actions import ActionDeps
 
 
-def _make_overlay(mock_gamepad, on_hide_desktop=None):
-    return HomeOverlay(gamepad=mock_gamepad, on_hide_desktop=on_hide_desktop)
+def _make_overlay(mock_gamepad, action_deps=None):
+    return HomeOverlay(gamepad=mock_gamepad, action_deps=action_deps)
 
 
-def _shown(mock_gamepad, extra_items=None, on_cancel=None, on_hide_desktop=None):
+def _shown(mock_gamepad, extra_items=None, on_cancel=None, action_deps=None):
     """Zwraca overlay w stanie pokazanym (show_overlay wywołane)."""
-    overlay = _make_overlay(mock_gamepad, on_hide_desktop=on_hide_desktop)
+    overlay = _make_overlay(mock_gamepad, action_deps=action_deps)
     overlay.show_overlay(extra_items=extra_items, on_cancel=on_cancel)
     return overlay
 
@@ -170,29 +171,21 @@ class TestActivate:
             overlay._handle_pad("select")
         assert not overlay.isVisible()
 
-    def test_hide_desktop_calls_callback_immediately(self, mock_gamepad):
-        called = []
-        overlay = _shown(mock_gamepad, on_hide_desktop=lambda: called.append(True))
+    def test_hide_desktop_calls_pause_immediately(self, mock_gamepad):
+        desktop = MagicMock()
+        overlay = _shown(mock_gamepad, action_deps=ActionDeps(desktop=desktop))
         hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
         overlay._index = hide_idx
         with patch("overlays.home_overlay.ConfirmDialog") as mock_dlg:
             overlay._handle_pad("select")
         mock_dlg.assert_not_called()
-        assert called == [True]
+        desktop.pause.assert_called_once()
 
-    def test_hide_desktop_hides_overlay_before_confirming(self, mock_gamepad):
-        overlay = _shown(mock_gamepad, on_hide_desktop=lambda: None)
+    def test_hide_desktop_hides_overlay(self, mock_gamepad):
+        overlay = _shown(mock_gamepad, action_deps=ActionDeps(desktop=MagicMock()))
         hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
         overlay._index = hide_idx
-        with patch("overlays.home_overlay.ConfirmDialog"):
-            overlay._handle_pad("select")
-        assert not overlay.isVisible()
-
-    def test_hide_desktop_noop_when_no_callback(self, mock_gamepad):
-        overlay = _shown(mock_gamepad)   # on_hide_desktop=None
-        hide_idx = next(i for i, it in enumerate(overlay._items) if it.get("action") == "hide_desktop")
-        overlay._index = hide_idx
-        overlay._handle_pad("select")   # nie powinno rzucać
+        overlay._handle_pad("select")
         assert not overlay.isVisible()
 
 

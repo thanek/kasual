@@ -2,53 +2,74 @@
 
 import subprocess
 from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 from PyQt6.QtCore import QT_TRANSLATE_NOOP, QCoreApplication
 
-# All system actions — used by Desktop (topbar) and HomeOverlay (menu).
-# Each entry: type, label (translatable), icon (qtawesome), color (topbar button background).
-ACTION_DEFS: list[dict] = [
-    {"type": "volume", "label": QT_TRANSLATE_NOOP("Kasual", "Volume"), "icon": "fa5s.volume-up", "color": "#3b4252"},
-    {"type": "sleep", "label": QT_TRANSLATE_NOOP("Kasual", "Sleep"), "icon": "fa5s.moon", "color": "#4c566a"},
-    {"type": "restart", "label": QT_TRANSLATE_NOOP("Kasual", "Restart"), "icon": "fa5s.redo-alt", "color": "#5e81ac"},
-    {"type": "shutdown", "label": QT_TRANSLATE_NOOP("Kasual", "Shut Down"), "icon": "fa5s.power-off",
-     "color": "#bf616a"},
-    {"type": "hide_desktop", "label": QT_TRANSLATE_NOOP("Kasual", "Minimize Desktop"), "icon": "fa5s.window-minimize",
-     "color": "#d580ff"},
-]
 
-# Mapping: action type → (confirmation question, system command)
-_CONFIRMED_ACTIONS: dict[str, tuple[str, list[str]]] = {
-    "sleep": (QT_TRANSLATE_NOOP("Kasual", "Are you sure you want to sleep?"), ["systemctl", "suspend"]),
-    "restart": (QT_TRANSLATE_NOOP("Kasual", "Are you sure you want to restart?"), ["systemctl", "reboot"]),
-    "shutdown": (QT_TRANSLATE_NOOP("Kasual", "Are you sure you want to shut down?"), ["systemctl", "poweroff"]),
+@dataclass
+class ActionDeps:
+    desktop: Any
+
+
+# Ordered dict — insertion order defines topbar button order.
+# confirmation: translated string shown in ConfirmDialog; None = execute immediately.
+# action:       callable(d: ActionDeps) — no imports from Desktop needed here.
+ACTIONS: dict[str, dict] = {
+    "volume": {
+        "label": QT_TRANSLATE_NOOP("Kasual", "Volume"),
+        "icon": "fa5s.volume-up",
+        "color": "#3b4252",
+        "confirmation": None,
+        "action": lambda d: d.desktop._open_volume_overlay(),
+    },
+    "sleep": {
+        "label": QT_TRANSLATE_NOOP("Kasual", "Sleep"),
+        "icon": "fa5s.moon",
+        "color": "#4c566a",
+        "confirmation": QT_TRANSLATE_NOOP("Kasual", "Are you sure you want to sleep?"),
+        "action": lambda d: subprocess.Popen(["systemctl", "suspend"]),
+    },
+    "restart": {
+        "label": QT_TRANSLATE_NOOP("Kasual", "Restart"),
+        "icon": "fa5s.redo-alt",
+        "color": "#5e81ac",
+        "confirmation": QT_TRANSLATE_NOOP("Kasual", "Are you sure you want to restart?"),
+        "action": lambda d: subprocess.Popen(["systemctl", "reboot"]),
+    },
+    "shutdown": {
+        "label": QT_TRANSLATE_NOOP("Kasual", "Shut Down"),
+        "icon": "fa5s.power-off",
+        "color": "#bf616a",
+        "confirmation": QT_TRANSLATE_NOOP("Kasual", "Are you sure you want to shut down?"),
+        "action": lambda d: subprocess.Popen(["systemctl", "poweroff"]),
+    },
+    "hide_desktop": {
+        "label": QT_TRANSLATE_NOOP("Kasual", "Minimize Desktop"),
+        "icon": "fa5s.window-minimize",
+        "color": "#d580ff",
+        "confirmation": None,
+        "action": lambda d: d.desktop.pause(),
+    },
 }
 
 
-def execute_action(
+def run_action(
         action_type: str,
-        *,
-        on_volume: Callable[[], None] | None = None,
-        on_hide_desktop: Callable[[], None] | None = None,
-        show_confirm: Callable[[str, Callable[[], None]], None] | None = None,
+        d: ActionDeps,
+        show_confirm: Callable[[str, Callable[[], None]], None],
 ) -> None:
-    """Execute a system action by type.
+    """Execute a system action.
 
-    Callbacks:
-        on_volume       — called when action_type == "volume"
-        on_hide_desktop — called when action_type == "hide_desktop"
-        show_confirm    — called with (question, on_confirmed) for sleep/restart/shutdown
+    If the action has a confirmation string, show_confirm is called with the
+    translated question and a callback that performs the action on confirmation.
+    Otherwise the action is executed immediately.
     """
-    if action_type == "volume":
-        if on_volume:
-            on_volume()
-        return
-    if action_type == "hide_desktop":
-        if on_hide_desktop:
-            on_hide_desktop()
-        return
-    if action_type not in _CONFIRMED_ACTIONS or show_confirm is None:
-        return
-    question_src, cmd = _CONFIRMED_ACTIONS[action_type]
-    question = QCoreApplication.translate("Kasual", question_src)
-    show_confirm(question, lambda c=cmd: subprocess.Popen(c))
+    spec = ACTIONS[action_type]
+    execute = lambda: spec["action"](d)
+    if spec["confirmation"] is not None:
+        question = QCoreApplication.translate("Kasual", spec["confirmation"])
+        show_confirm(question, execute)
+    else:
+        execute()
