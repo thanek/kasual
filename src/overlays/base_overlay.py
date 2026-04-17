@@ -30,22 +30,34 @@ class BaseOverlay(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._gamepad = gamepad
-        self._handler = handler
-        self._closed  = False
+        self._gamepad   = gamepad
+        self._handler   = handler
+        self._closed    = False
+        self._is_child  = parent is not None
 
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        if self._is_child:
+            # Render inside the parent's Wayland surface — no new xdg_toplevel.
+            self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        else:
+            self.setWindowFlags(
+                Qt.WindowType.FramelessWindowHint |
+                Qt.WindowType.WindowStaysOnTopHint |
+                Qt.WindowType.Tool
+            )
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            self.setWindowTitle("Kasual Overlay")
+
         self.setStyleSheet("background-color: rgba(0, 0, 0, 150);")
 
     def _show(self) -> None:
-        """Registers the gamepad handler and displays the overlay fullscreen."""
+        """Registers the gamepad handler and displays the overlay."""
         self._gamepad.push_handler(self._handler)
-        self.showFullScreen()
+        if self._is_child:
+            self.setGeometry(self.parent().rect())
+            self.show()
+            self.raise_()
+        else:
+            self.showFullScreen()
         self.activateWindow()
         self.setFocus()
 

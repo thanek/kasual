@@ -649,6 +649,7 @@ class Desktop(QWidget):
             on_confirmed=_wrap(on_confirmed),
             on_cancelled=_wrap(on_cancelled),
             gamepad=self._gamepad,
+            parent=self if self._active_context is None else None,
         )
 
     # ── Top bar actions ────────────────────────────────────────────────────
@@ -657,7 +658,7 @@ class Desktop(QWidget):
         self._action_runner.run(action_type)
 
     def _open_volume_overlay(self) -> None:
-        overlay = VolumeOverlay(self._gamepad)
+        overlay = VolumeOverlay(self._gamepad, parent=self if self._active_context is None else None)
         self._volume_overlay = overlay
         overlay.closed.connect(self._on_volume_closed)
 
