@@ -75,9 +75,9 @@ class InfoMode(QWidget):
         card_layout.setSpacing(10)
 
         for label, value in (
-            ("Typ:", mime or "nieznany"),
-            ("Rozmiar:", _human_size(stat.st_size)),
-            ("Zmodyfikowano:", mtime),
+            (self.tr("Type:"), mime or self.tr("unknown")),
+            (self.tr("Size:"), _human_size(stat.st_size)),
+            (self.tr("Modified:"), mtime),
         ):
             row = QWidget()
             row_layout = QHBoxLayout(row)
@@ -92,7 +92,7 @@ class InfoMode(QWidget):
             row_layout.addWidget(val, 1)
             card_layout.addWidget(row)
 
-        hint_lbl = QLabel("Typ pliku nie jest obsługiwany")
+        hint_lbl = QLabel(self.tr("File type is not supported"))
         hint_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_lbl.setStyleSheet("color: #444; font-size: 13px; font-style: italic;")
 

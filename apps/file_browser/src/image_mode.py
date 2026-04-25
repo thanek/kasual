@@ -4,8 +4,8 @@ import threading
 from pathlib import Path
 from urllib.request import urlopen
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap, QTransform
+from PyQt6.QtCore import Qt, QBuffer, QIODeviceBase, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QImageReader, QPainter, QPixmap, QTransform
 from PyQt6.QtWidgets import QApplication, QWidget
 
 
@@ -50,8 +50,12 @@ class ImageMode(QWidget):
     def _on_image_data(self, data: bytes) -> None:
         self._loading = False
         if data:
-            pix = QPixmap()
-            pix.loadFromData(data)
+            buf = QBuffer()
+            buf.setData(data)
+            buf.open(QIODeviceBase.OpenModeFlag.ReadOnly)
+            reader = QImageReader(buf)
+            reader.setAutoTransform(True)
+            pix = QPixmap.fromImage(reader.read())
             if not pix.isNull():
                 self._pixmap = pix
                 screen = QApplication.primaryScreen().size()
@@ -89,7 +93,9 @@ class ImageMode(QWidget):
     # ------------------------------------------------------------------ image
 
     def _load_pixmap(self, path: Path) -> None:
-        self._pixmap = QPixmap(str(path))
+        reader = QImageReader(str(path))
+        reader.setAutoTransform(True)
+        self._pixmap = QPixmap.fromImage(reader.read())
         screen = QApplication.primaryScreen().size()
         w, h = self._pixmap.width(), self._pixmap.height()
         if w > screen.width() or h > screen.height():

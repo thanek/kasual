@@ -10,6 +10,8 @@ from evdev import ecodes as e
 _ui = UInput()
 _TRIGGER_THRESHOLD = 200
 _DEAD_ZONE = 0.15
+_REPEAT_DELAY = 0.35
+_REPEAT_INTERVAL = 0.08
 
 
 def _press(key: int) -> None:
@@ -80,6 +82,7 @@ class PadListener(threading.Thread):
         self._window = window
         self._mode = 'browse'
         self._trigger_active = {e.ABS_Z: False, e.ABS_RZ: False}
+        self._repeat_stop: threading.Event | None = None
         self._stick_x = 0.0
         self._stick_y = 0.0
         self._left_y = 0.0
@@ -103,6 +106,24 @@ class PadListener(threading.Thread):
         self._left_y = 0.0
         self._trigger_active[e.ABS_Z] = False
         self._trigger_active[e.ABS_RZ] = False
+        self._stop_repeat()
+
+    def _start_repeat(self, key: int) -> None:
+        self._stop_repeat()
+        stop = threading.Event()
+        self._repeat_stop = stop
+        def _loop():
+            if stop.wait(timeout=_REPEAT_DELAY):
+                return
+            while not stop.is_set():
+                _press(key)
+                stop.wait(timeout=_REPEAT_INTERVAL)
+        threading.Thread(target=_loop, daemon=True).start()
+
+    def _stop_repeat(self) -> None:
+        if self._repeat_stop is not None:
+            self._repeat_stop.set()
+            self._repeat_stop = None
 
     @property
     def stick(self) -> tuple[float, float]:
@@ -129,11 +150,19 @@ class PadListener(threading.Thread):
                 elif ev.type == ecodes.EV_ABS:
                     match ev.code:
                         case ecodes.ABS_HAT0X:
-                            if ev.value == -1:  _press(e.KEY_LEFT)
-                            elif ev.value == 1: _press(e.KEY_RIGHT)
+                            if ev.value == -1:
+                                _press(e.KEY_LEFT);  self._start_repeat(e.KEY_LEFT)
+                            elif ev.value == 1:
+                                _press(e.KEY_RIGHT); self._start_repeat(e.KEY_RIGHT)
+                            else:
+                                self._stop_repeat()
                         case ecodes.ABS_HAT0Y:
-                            if ev.value == -1:  _press(e.KEY_UP)
-                            elif ev.value == 1: _press(e.KEY_DOWN)
+                            if ev.value == -1:
+                                _press(e.KEY_UP);   self._start_repeat(e.KEY_UP)
+                            elif ev.value == 1:
+                                _press(e.KEY_DOWN); self._start_repeat(e.KEY_DOWN)
+                            else:
+                                self._stop_repeat()
                         case e.ABS_Z:
                             active = ev.value > _TRIGGER_THRESHOLD
                             if active and not self._trigger_active[e.ABS_Z]:
@@ -150,14 +179,19 @@ class PadListener(threading.Thread):
                     match ev.code:
                         case ecodes.BTN_SOUTH: _press(e.KEY_ENTER)
                         case ecodes.BTN_EAST:  _press(e.KEY_ESC)
+                        case ecodes.BTN_NORTH: _press(e.KEY_H)
                         case ecodes.BTN_WEST:  _press(e.KEY_R)
                         case ecodes.BTN_TL:    _press(e.KEY_PAGEUP)
                         case ecodes.BTN_TR:    _press(e.KEY_PAGEDOWN)
                 elif ev.type == ecodes.EV_ABS:
                     match ev.code:
                         case ecodes.ABS_HAT0X:
-                            if ev.value < 0:   _press(e.KEY_LEFT)
-                            elif ev.value > 0: _press(e.KEY_RIGHT)
+                            if ev.value < 0:
+                                _press(e.KEY_LEFT);  self._start_repeat(e.KEY_LEFT)
+                            elif ev.value > 0:
+                                _press(e.KEY_RIGHT); self._start_repeat(e.KEY_RIGHT)
+                            else:
+                                self._stop_repeat()
                         case e.ABS_RX:
                             self._stick_x = _normalize(ev.value, self._rx_info)
                         case e.ABS_RY:

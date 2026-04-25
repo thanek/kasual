@@ -159,6 +159,8 @@ class FileBrowserWindow(QMainWindow):
         self._dlna_browse_gen = 0
         self._dlna_thumb_sig: _ThumbSignal | None = None
 
+        self._focus_after: str | None = None
+
         central = QWidget()
         central.setStyleSheet(f"background-color: {BG};")
         self._stack = QStackedWidget()
@@ -503,7 +505,19 @@ class FileBrowserWindow(QMainWindow):
         self._main_idx = 0
         if self._file_list.count() > 0:
             self._file_list.setCurrentRow(0)
+        self._apply_focus_after(lambda d: isinstance(d, Path) and d.name == self._focus_after)
         self._update_statusbar()
+
+    def _apply_focus_after(self, predicate) -> None:
+        if self._focus_after is None:
+            return
+        for row in range(self._file_list.count()):
+            data = self._file_list.item(row).data(Qt.ItemDataRole.UserRole)
+            if predicate(data):
+                self._main_idx = row
+                self._file_list.setCurrentRow(row)
+                break
+        self._focus_after = None
 
     def _on_thumbnails_ready(self, uris: list) -> None:
         for uri in uris:
@@ -549,12 +563,14 @@ class FileBrowserWindow(QMainWindow):
             return
         if isinstance(self._current, DlnaLocation):
             if self._current.parent is not None:
+                self._focus_after = self._current.container_id
                 self._navigate(self._current.parent)
             else:
                 self._navigate(_DLNA)
             return
         parent = self._current.parent
         if parent != self._current:
+            self._focus_after = self._current.name
             self._navigate(parent)
 
     def _activate_current_item(self) -> None:
@@ -788,6 +804,8 @@ class FileBrowserWindow(QMainWindow):
             return
         self._dlna_browse_gen += 1
         gen = self._dlna_browse_gen
+        if self._dlna_thumb_sig is not None:
+            self._dlna_thumb_sig.ready.disconnect()
         sig = _ThumbSignal()
         sig.ready.connect(self._on_dlna_thumb)
         self._dlna_thumb_sig = sig
@@ -828,6 +846,9 @@ class FileBrowserWindow(QMainWindow):
         self._main_idx = 0
         if self._file_list.count() > 0:
             self._file_list.setCurrentRow(0)
+        self._apply_focus_after(
+            lambda d: isinstance(d, DlnaLocation) and d.container_id == self._focus_after
+        )
         n = len(entries)
         self._status_lbl.setText(
             self.tr("DLNA  ·  {n} item(s)").format(n=n) if n else self.tr("Empty directory")
@@ -1011,7 +1032,7 @@ class FileBrowserWindow(QMainWindow):
                     self._file_list.setCurrentRow(self._main_idx)
                     sound_player.play("cursor")
             elif key == Qt.Key.Key_Left:
-                if self._icon_mode and self._main_idx > 0:
+                if self._icon_mode and self._main_idx > 0 and self._main_idx % step != 0:
                     self._main_idx -= 1
                     self._file_list.setCurrentRow(self._main_idx)
                     sound_player.play("cursor")

@@ -24,7 +24,9 @@ def _fmt_time(ms: int) -> str:
     return f"{m}:{s:02d}"
 
 
-def _paint_controls(painter: QPainter, w: int, h: int, player: QMediaPlayer) -> None:
+def _paint_controls(painter: QPainter, w: int, h: int,
+                    player: QMediaPlayer, audio: QAudioOutput) -> None:
+    muted = audio.isMuted()
     duration = player.duration()
     position = player.position()
     is_playing = player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
@@ -53,12 +55,16 @@ def _paint_controls(painter: QPainter, w: int, h: int, player: QMediaPlayer) -> 
     painter.drawText(QRect(0, bar_y, _MARGIN, _BAR_H),
                      Qt.AlignmentFlag.AlignCenter,
                      "⏸" if is_playing else "▶")
+    painter.drawText(QRect(w - _MARGIN, bar_y, _MARGIN, _BAR_H),
+                     Qt.AlignmentFlag.AlignCenter,
+                     "🔇" if muted else "🔊")
 
 
 class _VideoView(QGraphicsView):
-    def __init__(self, player: QMediaPlayer, parent: QWidget) -> None:
+    def __init__(self, player: QMediaPlayer, audio: QAudioOutput, parent: QWidget) -> None:
         super().__init__(parent)
         self._player = player
+        self._audio = audio
         self._controls_visible = False
 
         scene = QGraphicsScene(self)
@@ -87,7 +93,8 @@ class _VideoView(QGraphicsView):
             return
         painter.save()
         painter.resetTransform()
-        _paint_controls(painter, self.viewport().width(), self.viewport().height(), self._player)
+        _paint_controls(painter, self.viewport().width(), self.viewport().height(),
+                        self._player, self._audio)
         painter.restore()
 
 
@@ -101,7 +108,7 @@ class VideoMode(QWidget):
         self._player = QMediaPlayer(self)
         self._player.setAudioOutput(self._audio)
 
-        self._view = _VideoView(self._player, self)
+        self._view = _VideoView(self._player, self._audio, self)
         layout.addWidget(self._view)
 
         if isinstance(source, Path):
@@ -135,6 +142,9 @@ class VideoMode(QWidget):
         if key in (Qt.Key.Key_Right, Qt.Key.Key_Equal, Qt.Key.Key_Plus):
             self._seek(+5000)
             return True
+        if key == Qt.Key.Key_H:
+            self._toggle_mute()
+            return True
         if key == Qt.Key.Key_Escape:
             if self._view._controls_visible:
                 self._hide_controls()
@@ -148,6 +158,10 @@ class VideoMode(QWidget):
     def stop(self) -> None:
         self._player.stop()
 
+    def _restart_hide_timer_if_playing(self) -> None:
+        if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._hide_timer.start()
+
     def _toggle_pause(self) -> None:
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
@@ -156,14 +170,18 @@ class VideoMode(QWidget):
         else:
             self._player.play()
             self._show_controls()
-            self._hide_timer.start()
+            self._restart_hide_timer_if_playing()
+
+    def _toggle_mute(self) -> None:
+        self._audio.setMuted(not self._audio.isMuted())
+        self._show_controls()
+        self._restart_hide_timer_if_playing()
 
     def _seek(self, delta_ms: int) -> None:
         pos = max(0, min(self._player.position() + delta_ms, self._player.duration()))
         self._player.setPosition(pos)
         self._show_controls()
-        if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            self._hide_timer.start()
+        self._restart_hide_timer_if_playing()
 
     def _show_controls(self) -> None:
         self._view._controls_visible = True
@@ -176,5 +194,6 @@ class VideoMode(QWidget):
 
     def _on_media_status(self, status: QMediaPlayer.MediaStatus) -> None:
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
+            self._player.pause()
             self._show_controls()
             self._hide_timer.stop()

@@ -133,6 +133,28 @@
         <translation>DLNA  ·  Elementów: {n}</translation>
     </message>
 </context><context>
+    <name>InfoMode</name>
+    <message>
+        <source>Type:</source>
+        <translation>Typ:</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>Rozmiar:</translation>
+    </message>
+    <message>
+        <source>Modified:</source>
+        <translation>Zmodyfikowano:</translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <translation>nieznany</translation>
+    </message>
+    <message>
+        <source>File type is not supported</source>
+        <translation>Typ pliku nie jest obsługiwany</translation>
+    </message>
+</context><context>
     <name>InfoDialog</name>
     <message>
         <location filename="../src/info_dialog.py" line="42" />
