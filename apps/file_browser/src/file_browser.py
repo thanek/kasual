@@ -109,6 +109,19 @@ class _AsyncResult(QObject):
     ready = pyqtSignal(object)
 
 
+class _ThumbSignal(QObject):
+    ready = pyqtSignal(int, int, bytes)  # row, gen, data
+
+
+_DLNA_THUMB_SEM = threading.Semaphore(4)
+
+
+def _run_dlna_thumb(url: str, row: int, gen: int, sig: _ThumbSignal) -> None:
+    with _DLNA_THUMB_SEM:
+        data = dlna_mod.fetch_thumbnail(url)
+    sig.ready.emit(row, gen, data)
+
+
 # ── Main window ───────────────────────────────────────────────────────────────
 
 class FileBrowserWindow(QMainWindow):
@@ -141,6 +154,10 @@ class FileBrowserWindow(QMainWindow):
         self._pending_thumbs: dict[str, int] = {}
         self._thumbnailer = Thumbnailer(self)
         self._thumbnailer.ready.connect(self._on_thumbnails_ready)
+
+        # DLNA thumbnails
+        self._dlna_browse_gen = 0
+        self._dlna_thumb_sig: _ThumbSignal | None = None
 
         central = QWidget()
         central.setStyleSheet(f"background-color: {BG};")
@@ -643,6 +660,7 @@ class FileBrowserWindow(QMainWindow):
             self._history.append(self._current)
             self._future.clear()
         self._current = _DLNA
+        self._dlna_browse_gen += 1
         self._pending_thumbs.clear()
         self._breadcrumb.set_label(
             QCoreApplication.translate("FileBrowser", "Network")
@@ -768,8 +786,14 @@ class FileBrowserWindow(QMainWindow):
             self._file_list.addItem(err)
             self._status_lbl.setText(self.tr("Cannot connect to server"))
             return
+        self._dlna_browse_gen += 1
+        gen = self._dlna_browse_gen
+        sig = _ThumbSignal()
+        sig.ready.connect(self._on_dlna_thumb)
+        self._dlna_thumb_sig = sig
+
         entries: list = result
-        for entry in entries:
+        for row, entry in enumerate(entries):
             if entry.is_container:
                 icon = qta.icon("fa5s.folder", color=FOLDER_CLR)
                 child_loc = DlnaLocation(
@@ -794,6 +818,12 @@ class FileBrowserWindow(QMainWindow):
                 item = QListWidgetItem(icon, entry.title)
                 item.setData(Qt.ItemDataRole.UserRole, entry)
             self._file_list.addItem(item)
+            if entry.thumbnail_url:
+                threading.Thread(
+                    target=_run_dlna_thumb,
+                    args=(entry.thumbnail_url, row, gen, sig),
+                    daemon=True,
+                ).start()
 
         self._main_idx = 0
         if self._file_list.count() > 0:
@@ -802,6 +832,21 @@ class FileBrowserWindow(QMainWindow):
         self._status_lbl.setText(
             self.tr("DLNA  ·  {n} item(s)").format(n=n) if n else self.tr("Empty directory")
         )
+
+    def _on_dlna_thumb(self, row: int, gen: int, data: bytes) -> None:
+        if gen != self._dlna_browse_gen or not data:
+            return
+        item = self._file_list.item(row)
+        if item is None:
+            return
+        pix = QPixmap()
+        if not pix.loadFromData(data):
+            return
+        if pix.width() > 256 or pix.height() > 256:
+            pix = pix.scaled(256, 256,
+                             Qt.AspectRatioMode.KeepAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
+        item.setIcon(QIcon(pix))
 
     @staticmethod
     def _dlna_breadcrumb(loc: DlnaLocation) -> str:

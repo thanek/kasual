@@ -31,6 +31,15 @@ class DlnaEntry:
     is_container: bool
     mime_type: str = ""
     resource_url: str = ""
+    thumbnail_url: str = ""
+
+
+def fetch_thumbnail(url: str, timeout: int = 5) -> bytes:
+    try:
+        with urlopen(url, timeout=timeout) as resp:
+            return resp.read()
+    except Exception:
+        return b""
 
 
 def get_control_url(location: str) -> str | None:
@@ -88,22 +97,38 @@ def browse(control_url: str, object_id: str = "0") -> list[DlnaEntry]:
     ns = {
         "d": "urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/",
         "dc": "http://purl.org/dc/elements/1.1/",
+        "upnp": "urn:schemas-upnp-org:metadata-1-0/upnp/",
     }
     entries: list[DlnaEntry] = []
 
     for container in didl.findall("d:container", ns):
         eid = container.get("id", "")
         title = container.findtext("dc:title", namespaces=ns) or eid
-        entries.append(DlnaEntry(id=eid, title=title, is_container=True))
+        thumb = (container.findtext("upnp:albumArtURI", namespaces=ns) or "").strip()
+        entries.append(DlnaEntry(id=eid, title=title, is_container=True, thumbnail_url=thumb))
 
     for item in didl.findall("d:item", ns):
         eid = item.get("id", "")
         title = item.findtext("dc:title", namespaces=ns) or eid
-        res = item.find("d:res", ns)
-        resource_url = (res.text or "").strip() if res is not None else ""
-        proto = (res.get("protocolInfo", "") if res is not None else "").split(":")
-        mime = proto[2] if len(proto) > 2 else ""
+        thumb = (item.findtext("upnp:albumArtURI", namespaces=ns) or "").strip()
+
+        resource_url = ""
+        mime = ""
+        for res in item.findall("d:res", ns):
+            proto_info = res.get("protocolInfo", "")
+            parts = proto_info.split(":")
+            additional = parts[3] if len(parts) > 3 else ""
+            is_thumb_res = "JPEG_TN" in additional or "PNG_TN" in additional
+            url_text = (res.text or "").strip()
+            if is_thumb_res:
+                if not thumb:
+                    thumb = url_text
+            elif not resource_url and url_text:
+                resource_url = url_text
+                mime = parts[2] if len(parts) > 2 else ""
+
         entries.append(DlnaEntry(id=eid, title=title, is_container=False,
-                                  mime_type=mime, resource_url=resource_url))
+                                  mime_type=mime, resource_url=resource_url,
+                                  thumbnail_url=thumb))
 
     return entries
