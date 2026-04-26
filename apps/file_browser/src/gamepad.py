@@ -58,7 +58,7 @@ class PadListener(threading.Thread):
         A (BTN_SOUTH)  → Enter
         B (BTN_EAST)   → Escape
         Y (BTN_NORTH)  → H
-        X (BTN_WEST)   → U
+        X (BTN_WEST)   → S   (sort menu)
         LB (BTN_TL)    → Up   (prev item)
         RB (BTN_TR)    → Down (next item)
         LT (ABS_Z)     → Up   (prev item)
@@ -144,7 +144,7 @@ class PadListener(threading.Thread):
                         case ecodes.BTN_SOUTH: _press(e.KEY_ENTER)
                         case ecodes.BTN_EAST:  _press(e.KEY_ESC)
                         case ecodes.BTN_NORTH: _press(e.KEY_H)
-                        case ecodes.BTN_WEST:  _press(e.KEY_U)
+                        case ecodes.BTN_WEST:  _press(e.KEY_S)
                         case ecodes.BTN_TL:    _press(e.KEY_UP)
                         case ecodes.BTN_TR:    _press(e.KEY_DOWN)
                 elif ev.type == ecodes.EV_ABS:
