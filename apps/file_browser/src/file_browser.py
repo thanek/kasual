@@ -121,6 +121,8 @@ def _media_mode_for(path: Path):
         return ImageMode(path)
     if mime.startswith("video/"):
         return VideoMode(path)
+    if mime.startswith("audio/"):
+        return VideoMode(path, is_audio=True, thumbnail=find_thumbnail(path))
     return InfoMode(path)
 
 
@@ -850,8 +852,11 @@ class FileBrowserWindow(QMainWindow):
         mime = entry.mime_type
         if mime.startswith("image/"):
             mode = ImageMode(entry.resource_url)
-        elif mime.startswith("video/") or mime.startswith("audio/"):
+        elif mime.startswith("video/"):
             mode = VideoMode(entry.resource_url)
+        elif mime.startswith("audio/"):
+            mode = VideoMode(entry.resource_url, is_audio=True,
+                             thumbnail=entry.thumbnail_url or None)
         else:
             return
         self._open_media_mode(mode)

@@ -1,9 +1,12 @@
 """VIDEO mode — fullscreen video playback."""
 
+import threading
 from pathlib import Path
+from urllib.request import urlopen
 
-from PyQt6.QtCore import Qt, QRect, QTimer, QUrl
-from PyQt6.QtGui import QColor, QFont, QPainter
+import qtawesome as qta
+from PyQt6.QtCore import Qt, QRect, QTimer, QUrl, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
 from PyQt6.QtWidgets import QFrame, QGraphicsScene, QGraphicsView, QVBoxLayout, QWidget
@@ -13,6 +16,8 @@ _ACCENT = QColor(136, 192, 208)
 _BAR_COLOR = QColor(0, 0, 0, 200)
 _BAR_H = 90
 _MARGIN = 64
+_AUDIO_CIRCLE_COLOR = QColor(70, 70, 70)
+_AUDIO_ICON_COLOR = QColor(25, 25, 25)
 
 
 def _fmt_time(ms: int) -> str:
@@ -61,11 +66,17 @@ def _paint_controls(painter: QPainter, w: int, h: int,
 
 
 class _VideoView(QGraphicsView):
-    def __init__(self, player: QMediaPlayer, audio: QAudioOutput, parent: QWidget) -> None:
+    def __init__(self, player: QMediaPlayer, audio: QAudioOutput, parent: QWidget,
+                 is_audio: bool = False) -> None:
         super().__init__(parent)
         self._player = player
         self._audio = audio
         self._controls_visible = False
+        self._is_audio = is_audio
+        self._audio_pixmap: QPixmap | None = None
+        if is_audio:
+            # fa5s glyph U+F8CF (music-note, FA5 Pro); falls back to fa5s.music in free builds
+            self._audio_icon = qta.icon("fa5s.music", color=_AUDIO_ICON_COLOR)
 
         scene = QGraphicsScene(self)
         self.setScene(scene)
@@ -81,6 +92,10 @@ class _VideoView(QGraphicsView):
 
         self._item.nativeSizeChanged.connect(lambda _: self._fit())
 
+    def set_audio_pixmap(self, pix: QPixmap) -> None:
+        self._audio_pixmap = pix
+        self.viewport().update()
+
     def _fit(self) -> None:
         self.fitInView(self._item, Qt.AspectRatioMode.KeepAspectRatio)
 
@@ -88,18 +103,46 @@ class _VideoView(QGraphicsView):
         super().resizeEvent(event)
         self._fit()
 
+    def _draw_audio_bg(self, painter: QPainter) -> None:
+        vw = self.viewport().width()
+        vh = self.viewport().height()
+        r = min(vw, vh) * 9 // 32
+        cx, cy = vw // 2, vh // 2
+
+        if self._audio_pixmap and not self._audio_pixmap.isNull():
+            scaled = self._audio_pixmap.scaled(
+                r * 2, r * 2,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            painter.drawPixmap(cx - scaled.width() // 2, cy - scaled.height() // 2, scaled)
+        else:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(_AUDIO_CIRCLE_COLOR)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+            icon_size = r * 5 // 6
+            self._audio_icon.paint(
+                painter,
+                QRect(cx - icon_size // 2, cy - icon_size // 2, icon_size, icon_size),
+            )
+
     def drawForeground(self, painter: QPainter, rect) -> None:
-        if not self._controls_visible:
-            return
         painter.save()
         painter.resetTransform()
-        _paint_controls(painter, self.viewport().width(), self.viewport().height(),
-                        self._player, self._audio)
+        if self._is_audio:
+            self._draw_audio_bg(painter)
+        if self._controls_visible:
+            _paint_controls(painter, self.viewport().width(), self.viewport().height(),
+                            self._player, self._audio)
         painter.restore()
 
 
 class VideoMode(QWidget):
-    def __init__(self, source: 'Path | str'):
+    _thumbnail_ready = pyqtSignal(bytes)
+
+    def __init__(self, source: 'Path | str', is_audio: bool = False,
+                 thumbnail: 'Path | str | None' = None):
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -108,7 +151,7 @@ class VideoMode(QWidget):
         self._player = QMediaPlayer(self)
         self._player.setAudioOutput(self._audio)
 
-        self._view = _VideoView(self._player, self._audio, self)
+        self._view = _VideoView(self._player, self._audio, self, is_audio=is_audio)
         layout.addWidget(self._view)
 
         if isinstance(source, Path):
@@ -127,6 +170,37 @@ class VideoMode(QWidget):
             lambda _: self._view.viewport().update() if self._view._controls_visible else None
         )
         self._player.mediaStatusChanged.connect(self._on_media_status)
+
+        if is_audio and thumbnail is not None:
+            self._load_thumbnail(thumbnail)
+
+    def _load_thumbnail(self, thumbnail: 'Path | str') -> None:
+        if isinstance(thumbnail, Path):
+            pix = QPixmap(str(thumbnail))
+            if not pix.isNull():
+                self._view.set_audio_pixmap(pix)
+        elif isinstance(thumbnail, str) and thumbnail:
+            self._thumbnail_ready.connect(self._on_thumbnail_data)
+            threading.Thread(
+                target=self._fetch_thumbnail,
+                args=(thumbnail,),
+                daemon=True,
+            ).start()
+
+    def _fetch_thumbnail(self, url: str) -> None:
+        try:
+            with urlopen(url, timeout=5) as resp:
+                data = resp.read()
+        except Exception:
+            data = b""
+        self._thumbnail_ready.emit(data)
+
+    def _on_thumbnail_data(self, data: bytes) -> None:
+        if not data:
+            return
+        pix = QPixmap()
+        if pix.loadFromData(data) and not pix.isNull():
+            self._view.set_audio_pixmap(pix)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
