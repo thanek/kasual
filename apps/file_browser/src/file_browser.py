@@ -7,14 +7,16 @@ Y = Home folder, X = folder up, L1 = back, R1 = forward.
 
 import dataclasses
 import datetime
+import json
 import mimetypes
 import os
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QSize, QCoreApplication, QLocale, QObject, QTranslator, QT_TRANSLATE_NOOP, pyqtSignal
+from PyQt6.QtCore import Qt, QPoint, QSize, QCoreApplication, QLocale, QObject, QTranslator, QT_TRANSLATE_NOOP, pyqtSignal
 from PyQt6.QtGui import QColor, QKeyEvent, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
@@ -66,6 +68,19 @@ BOOKMARKS = [
     (QT_TRANSLATE_NOOP("FileBrowser", "Network"), "fa5s.network-wired", _DLNA),
 ]
 
+# Sort keys
+SORT_NAME_ASC = "name_asc"
+SORT_NAME_DESC = "name_desc"
+SORT_DATE_ASC = "date_asc"
+SORT_DATE_DESC = "date_desc"
+
+_SORT_OVERLAY_OPTS = [
+    (SORT_NAME_ASC,  "Name (A → Z)"),
+    (SORT_NAME_DESC, "Name (Z → A)"),
+    (SORT_DATE_ASC,  "Date (oldest first)"),
+    (SORT_DATE_DESC, "Date (newest first)"),
+]
+
 # Color palette (Nord-like, consistent with Kasual)
 BG = "#0b140e"
 BAR_BG = "rgba(15, 17, 25, 220)"
@@ -77,6 +92,29 @@ FOLDER_CLR = "#ebcb8b"
 FILE_CLR = "#81a1c1"
 
 
+def _sort_entries(entries: list, sort_key: str, folders_first: bool) -> list:
+    dirs = [e for e in entries if e.is_dir()]
+    files = [e for e in entries if not e.is_dir()]
+
+    use_date = sort_key in (SORT_DATE_ASC, SORT_DATE_DESC)
+    reverse = sort_key in (SORT_NAME_DESC, SORT_DATE_DESC)
+
+    def key_fn(e):
+        try:
+            return e.stat().st_ctime if use_date else e.name.lower()
+        except OSError:
+            return 0 if use_date else ""
+
+    dirs.sort(key=key_fn, reverse=reverse)
+    files.sort(key=key_fn, reverse=reverse)
+
+    if folders_first:
+        return dirs + files
+    combined = dirs + files
+    combined.sort(key=key_fn, reverse=reverse)
+    return combined
+
+
 def _media_mode_for(path: Path):
     mime = mimetypes.guess_type(str(path))[0] or ""
     if mime.startswith("image/"):
@@ -84,6 +122,30 @@ def _media_mode_for(path: Path):
     if mime.startswith("video/"):
         return VideoMode(path)
     return InfoMode(path)
+
+
+_CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "kasual"
+_DLNA_CACHE_FILE = _CACHE_DIR / "dlna_servers.json"
+_DLNA_CACHE_TTL = 3600  # seconds
+
+
+def _load_dlna_cache() -> tuple[list, float]:
+    """Return (servers, timestamp). servers=[] and timestamp=0 if no cache."""
+    try:
+        data = json.loads(_DLNA_CACHE_FILE.read_text())
+        return data["servers"], float(data["timestamp"])
+    except Exception:
+        return [], 0.0
+
+
+def _save_dlna_cache(servers: list) -> None:
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        _DLNA_CACHE_FILE.write_text(
+            json.dumps({"timestamp": time.time(), "servers": servers})
+        )
+    except Exception:
+        pass
 
 
 @dataclasses.dataclass
@@ -138,7 +200,12 @@ class FileBrowserWindow(QMainWindow):
         self._future: list[Path] = []
         self._current: Path = HOME
 
-        # Focus mode: "topbar" | "sidebar" | "main"
+        # Sort settings: path → (sort_key, folders_first)
+        self._sort_settings: dict[Path, tuple[str, bool]] = {}
+        self._dlna_sort: tuple[str, bool] = (SORT_NAME_ASC, True)
+        self._sort_overlay_idx = 0
+
+        # Focus mode: "topbar" | "sidebar" | "main" | "sort_overlay"
         self._focus = "main"
         self._topbar_idx = 0
         self._sidebar_idx = 0
@@ -161,7 +228,8 @@ class FileBrowserWindow(QMainWindow):
 
         self._focus_after: str | None = None
 
-        central = QWidget()
+        self._central = QWidget()
+        central = self._central
         central.setStyleSheet(f"background-color: {BG};")
         self._stack = QStackedWidget()
         self._stack.addWidget(central)
@@ -180,6 +248,7 @@ class FileBrowserWindow(QMainWindow):
         root.addLayout(content, stretch=1)
         root.addWidget(self._build_statusbar())
 
+        self._build_sort_overlay()
         self._apply_icon_mode()
         self._navigate(HOME, add_to_history=False)
         self._update_focus()
@@ -241,12 +310,25 @@ class FileBrowserWindow(QMainWindow):
         self._topbar_buttons.append(self._view_btn)
         self._refresh_view_btn_icon()
 
+        self._sort_btn = QToolButton()
+        self._sort_btn.setFixedSize(44, 44)
+        self._sort_btn.setIcon(qta.icon("fa5s.sort", color="white"))
+        self._sort_btn.setIconSize(QSize(18, 18))
+        self._sort_btn.setToolTip(self.tr("Sort"))
+        self._sort_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._sort_btn.clicked.connect(self._show_sort_overlay)
+        layout.addWidget(self._sort_btn)
+        self._topbar_buttons.append(self._sort_btn)
+
         self._refresh_topbar_style()
         return bar
 
     def _refresh_topbar_style(self) -> None:
         for i, btn in enumerate(self._topbar_buttons):
-            selected = (self._focus == "topbar" and i == self._topbar_idx)
+            selected = (
+                (self._focus == "topbar" and i == self._topbar_idx) or
+                (self._focus == "sort_overlay" and btn is self._sort_btn)
+            )
             if selected:
                 btn.setStyleSheet(f"""
                     QToolButton {{ background: {ACCENT}; border-radius: 8px; }}
@@ -464,13 +546,132 @@ class FileBrowserWindow(QMainWindow):
         self._refresh_nav_button_state()
         self._refresh_sidebar_style()
 
+    def _effective_sort(self) -> tuple[str, bool]:
+        if isinstance(self._current, DlnaLocation):
+            return self._dlna_sort
+        if not isinstance(self._current, Path):
+            return (SORT_NAME_ASC, True)
+        p = self._current
+        while True:
+            if p in self._sort_settings:
+                return self._sort_settings[p]
+            parent = p.parent
+            if parent == p:
+                break
+            p = parent
+        return (SORT_NAME_ASC, True)
+
+    def _dlna_sort_criteria(self) -> str:
+        sort_key, folders_first = self._dlna_sort
+        key_map = {
+            SORT_NAME_ASC:  "+dc:title",
+            SORT_NAME_DESC: "-dc:title",
+            SORT_DATE_ASC:  "+dc:date",
+            SORT_DATE_DESC: "-dc:date",
+        }
+        criteria = key_map.get(sort_key, "")
+        if folders_first and criteria:
+            criteria = "+upnp:class," + criteria
+        return criteria
+
+    def _apply_sort(self, sort_key: str, folders_first: bool) -> None:
+        if isinstance(self._current, Path):
+            self._sort_settings[self._current] = (sort_key, folders_first)
+            self._refresh_listing()
+        elif isinstance(self._current, DlnaLocation):
+            self._dlna_sort = (sort_key, folders_first)
+            self._enter_dlna_container(self._current, add_to_history=False)
+
+    def _build_sort_overlay(self) -> None:
+        self._sort_overlay = QWidget(self._central)
+        self._sort_overlay.setVisible(False)
+        self._sort_overlay.setStyleSheet(
+            f"background: #1a2230; border: 1px solid rgba(255,255,255,22);"
+        )
+        layout = QVBoxLayout(self._sort_overlay)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(0)
+
+        self._sort_overlay_items: list[QLabel] = []
+        for _ , label in _SORT_OVERLAY_OPTS:
+            lbl = QLabel(label)
+            lbl.setFixedHeight(40)
+            lbl.setContentsMargins(14, 0, 36, 0)
+            layout.addWidget(lbl)
+            self._sort_overlay_items.append(lbl)
+
+        sep = QWidget()
+        sep.setFixedHeight(1)
+        sep.setStyleSheet("background: rgba(255,255,255,20); border: none;")
+        layout.addWidget(sep)
+
+        ff_lbl = QLabel()
+        ff_lbl.setFixedHeight(40)
+        ff_lbl.setContentsMargins(14, 0, 36, 0)
+        layout.addWidget(ff_lbl)
+        self._sort_overlay_items.append(ff_lbl)
+
+        self._sort_overlay.setFixedWidth(260)
+        self._sort_overlay.adjustSize()
+
+    def _show_sort_overlay(self) -> None:
+        sort_key, _ = self._effective_sort()
+        keys = [k for k, _ in _SORT_OVERLAY_OPTS]
+        self._sort_overlay_idx = keys.index(sort_key) if sort_key in keys else 0
+        self._refresh_sort_overlay_items()
+        self._sort_overlay.adjustSize()
+        btn_pos = self._sort_btn.mapTo(self._central, QPoint(0, self._sort_btn.height()))
+        x = btn_pos.x() + self._sort_btn.width() - self._sort_overlay.width()
+        self._sort_overlay.move(x, btn_pos.y())
+        self._sort_overlay.raise_()
+        self._sort_overlay.show()
+        self._focus = "sort_overlay"
+        self._refresh_topbar_style()
+
+    def _hide_sort_overlay(self) -> None:
+        self._sort_overlay.hide()
+        self._focus = "topbar"
+        self._update_focus()
+
+    def _refresh_sort_overlay_items(self) -> None:
+        sort_key, folders_first = self._effective_sort()
+        for i, (key, label) in enumerate(_SORT_OVERLAY_OPTS):
+            prefix = "✓  " if key == sort_key else "    "
+            self._sort_overlay_items[i].setText(prefix + label)
+        ff_prefix = "✓  " if folders_first else "    "
+        self._sort_overlay_items[-1].setText(ff_prefix + self.tr("Folders first"))
+        self._refresh_sort_overlay_style()
+
+    def _refresh_sort_overlay_style(self) -> None:
+        for i, lbl in enumerate(self._sort_overlay_items):
+            if i == self._sort_overlay_idx:
+                lbl.setStyleSheet(
+                    f"color: #1e2535; background: {ACCENT}; font-size: 14px;"
+                )
+            else:
+                lbl.setStyleSheet(
+                    f"color: {TEXT}; background: transparent; font-size: 14px;"
+                )
+
+    def _activate_sort_overlay_item(self) -> None:
+        idx = self._sort_overlay_idx
+        n_sorts = len(_SORT_OVERLAY_OPTS)
+        if idx < n_sorts:
+            sort_key = _SORT_OVERLAY_OPTS[idx][0]
+            _, folders_first = self._effective_sort()
+            self._apply_sort(sort_key, folders_first)
+            self._hide_sort_overlay()
+        else:
+            sort_key, folders_first = self._effective_sort()
+            self._apply_sort(sort_key, not folders_first)
+            self._refresh_sort_overlay_items()
+
     def _refresh_listing(self) -> None:
         self._file_list.clear()
+        sort_key, folders_first = self._effective_sort()
         try:
-            entries = sorted(
-                [en for en in self._current.iterdir() if not en.name.startswith(".")],
-                key=lambda en: (not en.is_dir(), en.name.lower()),
-            )
+            raw = [en for en in self._current.iterdir() if not en.name.startswith(".")]
+            entries = _sort_entries(raw, sort_key, folders_first)
         except PermissionError:
             self._status_lbl.setText(self.tr("Cannot read this directory"))
             return
@@ -566,6 +767,7 @@ class FileBrowserWindow(QMainWindow):
                 self._focus_after = self._current.container_id
                 self._navigate(self._current.parent)
             else:
+                self._focus_after = self._current.server_name
                 self._navigate(_DLNA)
             return
         parent = self._current.parent
@@ -684,12 +886,21 @@ class FileBrowserWindow(QMainWindow):
         self._refresh_nav_button_state()
         self._refresh_sidebar_style()
 
+        cached_servers, cache_time = _load_dlna_cache()
+        cache_fresh = (time.time() - cache_time) < _DLNA_CACHE_TTL
+
         self._file_list.clear()
-        searching = QListWidgetItem(self.tr("Searching for DLNA servers..."))
-        searching.setFlags(searching.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-        searching.setForeground(QColor(MUTED))
-        self._file_list.addItem(searching)
-        self._status_lbl.setText(self.tr("Searching for DLNA servers..."))
+        if cached_servers:
+            self._populate_dlna_server_list(cached_servers)
+            if cache_fresh:
+                return
+            self._status_lbl.setText(self.tr("DLNA  ·  Refreshing…"))
+        else:
+            searching = QListWidgetItem(self.tr("Searching for DLNA servers..."))
+            searching.setFlags(searching.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            searching.setForeground(QColor(MUTED))
+            self._file_list.addItem(searching)
+            self._status_lbl.setText(self.tr("Searching for DLNA servers..."))
 
         sig = _DlnaSignal()
         sig.results.connect(self._on_dlna_results)
@@ -699,9 +910,26 @@ class FileBrowserWindow(QMainWindow):
             daemon=True,
         ).start()
 
+    def _populate_dlna_server_list(self, servers: list) -> None:
+        for server in servers:
+            icon = qta.icon("fa5s.server", color=ACCENT)
+            item = QListWidgetItem(icon, server["name"])
+            item.setData(Qt.ItemDataRole.UserRole,
+                         DlnaServer(name=server["name"], location=server["location"]))
+            self._file_list.addItem(item)
+        n = len(servers)
+        self._status_lbl.setText(self.tr("DLNA  ·  {n} server(s) found").format(n=n))
+        if n > 0:
+            self._main_idx = 0
+            self._file_list.setCurrentRow(0)
+            self._apply_focus_after(
+                lambda d: isinstance(d, DlnaServer) and d.name == self._focus_after
+            )
+
     def _on_dlna_results(self, servers: list) -> None:
         if self._current is not _DLNA:
             return
+        _save_dlna_cache(servers)
         self._file_list.clear()
         if not servers:
             item = QListWidgetItem(
@@ -714,16 +942,7 @@ class FileBrowserWindow(QMainWindow):
                 self.tr("No DLNA servers found on your network")
             )
         else:
-            for server in servers:
-                icon = qta.icon("fa5s.server", color=ACCENT)
-                item = QListWidgetItem(icon, server["name"])
-                item.setData(Qt.ItemDataRole.UserRole,
-                             DlnaServer(name=server["name"], location=server["location"]))
-                self._file_list.addItem(item)
-            n = len(servers)
-            self._status_lbl.setText(
-                self.tr("DLNA  ·  {n} server(s) found").format(n=n)
-            )
+            self._populate_dlna_server_list(servers)
 
     def _enter_dlna_server(self, server: DlnaServer) -> None:
         self._history.append(self._current)
@@ -754,13 +973,15 @@ class FileBrowserWindow(QMainWindow):
         sig.ready.connect(lambda result: self._on_dlna_container_ready(placeholder, result))
         self._async_sig = sig
 
+        sort_criteria = self._dlna_sort_criteria()
+
         def _fetch():
             ctrl = dlna_mod.get_control_url(server.location)
             if not ctrl:
                 sig.ready.emit(None)
                 return
             placeholder.control_url = ctrl
-            sig.ready.emit(dlna_mod.browse(ctrl, "0"))
+            sig.ready.emit(dlna_mod.browse(ctrl, "0", sort_criteria))
 
         threading.Thread(target=_fetch, daemon=True).start()
 
@@ -784,9 +1005,10 @@ class FileBrowserWindow(QMainWindow):
         sig = _AsyncResult()
         sig.ready.connect(lambda result: self._on_dlna_container_ready(loc, result))
         self._async_sig = sig
+        sort_criteria = self._dlna_sort_criteria()
         threading.Thread(
             target=lambda: sig.ready.emit(
-                dlna_mod.browse(loc.control_url, loc.container_id)
+                dlna_mod.browse(loc.control_url, loc.container_id, sort_criteria)
             ),
             daemon=True,
         ).start()
@@ -956,6 +1178,25 @@ class FileBrowserWindow(QMainWindow):
 
         key = event.key()
 
+        if self._focus == "sort_overlay":
+            if key == Qt.Key.Key_Up:
+                if self._sort_overlay_idx > 0:
+                    self._sort_overlay_idx -= 1
+                    self._refresh_sort_overlay_style()
+                    sound_player.play("cursor")
+            elif key == Qt.Key.Key_Down:
+                if self._sort_overlay_idx < len(self._sort_overlay_items) - 1:
+                    self._sort_overlay_idx += 1
+                    self._refresh_sort_overlay_style()
+                    sound_player.play("cursor")
+            elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._activate_sort_overlay_item()
+                sound_player.play("select")
+            elif key in (Qt.Key.Key_Escape, Qt.Key.Key_Left):
+                self._hide_sort_overlay()
+                sound_player.play("cursor")
+            return
+
         if self._focus == "topbar":
             if key == Qt.Key.Key_Left:
                 self._topbar_idx = (self._topbar_idx - 1) % len(self._topbar_buttons)
@@ -1021,7 +1262,7 @@ class FileBrowserWindow(QMainWindow):
                     self._main_idx -= step
                     self._file_list.setCurrentRow(self._main_idx)
                     sound_player.play("cursor")
-                elif not self._icon_mode:
+                else:
                     self._focus = "topbar"
                     self._topbar_idx = 0
                     self._update_focus()

@@ -18,7 +18,7 @@ _BROWSE_SOAP = """\
       <Filter>*</Filter>
       <StartingIndex>0</StartingIndex>
       <RequestedCount>0</RequestedCount>
-      <SortCriteria></SortCriteria>
+      <SortCriteria>{sort_criteria}</SortCriteria>
     </u:Browse>
   </s:Body>
 </s:Envelope>"""
@@ -59,9 +59,9 @@ def get_control_url(location: str) -> str | None:
     return None
 
 
-def browse(control_url: str, object_id: str = "0") -> list[DlnaEntry]:
+def browse(control_url: str, object_id: str = "0", sort_criteria: str = "") -> list[DlnaEntry]:
     """Return direct children of a DLNA container."""
-    body = _BROWSE_SOAP.format(object_id=object_id)
+    body = _BROWSE_SOAP.format(object_id=object_id, sort_criteria=sort_criteria)
     req = Request(
         control_url,
         data=body.encode(),
