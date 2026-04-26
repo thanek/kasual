@@ -21,4 +21,4 @@ if 'evdev' not in sys.modules:
     sys.modules['evdev'] = MagicMock()
 
 import os, sys as _sys
-_sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))

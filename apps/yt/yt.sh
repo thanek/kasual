@@ -1,4 +1,4 @@
 #!/bin/bash
 cd `dirname $0`
 source ../../venv/bin/activate
-python3 yt.py
+python3 src/yt.py
