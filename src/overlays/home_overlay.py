@@ -2,7 +2,7 @@ import logging
 from typing import Callable, NotRequired, TypedDict
 
 import qtawesome as qta
-from PyQt6.QtCore import Qt, QCoreApplication, QT_TRANSLATE_NOOP
+from PyQt6.QtCore import Qt, QCoreApplication, QT_TRANSLATE_NOOP, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QKeyEvent
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QLabel,
@@ -28,14 +28,20 @@ class HomeOverlay(QWidget):
     """
     Fullscreen overlay shown when BTN_MODE is pressed.
 
-    An independent top-level window (not a child of Desktop) with WindowStaysOnTopHint —
-    covers everything, including fullscreen applications.
+    Two modes, depending on `parent`:
+      - parent=None  → top-level window with WindowStaysOnTopHint, used when an
+        application is running (Desktop is hidden) so the overlay covers it.
+      - parent=Desktop → rendered inside Desktop's Wayland surface (no new
+        xdg_toplevel). Required so KDE Plasma panels cannot slip between the
+        Desktop and the overlay.
 
     Usage:
-        overlay = HomeOverlay(gamepad)
-        overlay.show_overlay(extra_items=[...])   # show with context
+        overlay = HomeOverlay(gamepad, action_deps, parent=desktop_or_none)
+        overlay.show_overlay(items=[...])         # show with context
         overlay.hide_overlay()                    # hide
     """
+
+    closed = pyqtSignal()   # emitted when the overlay is dismissed
 
 
     @staticmethod
@@ -53,10 +59,16 @@ class HomeOverlay(QWidget):
         }
         return [volume_item, cancel_item] + rest
 
-    def __init__(self, gamepad: GamepadWatcher, action_deps: ActionDeps | None = None, parent=None):
+    def __init__(
+        self,
+        gamepad: GamepadWatcher,
+        action_deps: ActionDeps | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._gamepad = gamepad
         self._index   = 0
+        self._chrome_hidden = False
         self._action_runner = ActionRunner(
             action_deps,
             lambda q, cb: ConfirmDialog(
@@ -69,13 +81,18 @@ class HomeOverlay(QWidget):
         self._items:     list[MenuItem]    = []
         self._buttons:   list[QPushButton] = []
         self._on_cancel  = None
+        self._is_child   = parent is not None
 
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool          # does not appear on the taskbar
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        if self._is_child:
+            # Render inside the parent's Wayland surface — no new xdg_toplevel.
+            self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        else:
+            self.setWindowFlags(
+                Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.WindowStaysOnTopHint
+                | Qt.WindowType.Tool          # does not appear on the taskbar
+            )
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
 
         outer = QVBoxLayout(self)
@@ -136,15 +153,39 @@ class HomeOverlay(QWidget):
         self._refresh_buttons()
         self._gamepad.push_handler(self._handle_pad)
         sound_player.play("popup_open")
-        self.showFullScreen()
-        self.raise_()
+        if self._is_child:
+            self._notify_opened()
+            self.setGeometry(self.parent().rect())
+            self.show()
+            self.raise_()
+        else:
+            self.showFullScreen()
+            self.raise_()
         self.activateWindow()
 
     def hide_overlay(self) -> None:
         if not self.isVisible():
             return
         self._gamepad.pop_handler(self._handle_pad)
+        self._notify_closed()
         self.hide()
+        self.closed.emit()
+
+    def _notify_opened(self) -> None:
+        if self._chrome_hidden:
+            return
+        parent = self.parent()
+        if hasattr(parent, "enter_overlay_mode"):
+            parent.enter_overlay_mode()
+            self._chrome_hidden = True
+
+    def _notify_closed(self) -> None:
+        if not self._chrome_hidden:
+            return
+        parent = self.parent()
+        if hasattr(parent, "exit_overlay_mode"):
+            parent.exit_overlay_mode()
+        self._chrome_hidden = False
 
     def _dismiss(self) -> None:
         """Close the overlay and restore the previous context (on_cancel)."""

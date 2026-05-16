@@ -53,6 +53,10 @@ class Desktop(QWidget):
         self._confirm_dialog = None
         self._volume_overlay = None
         self._is_paused      = False
+        # Reference-counted "minimal mode" — when >0, topbar and tile bar are
+        # hidden so the only thing showing through an overlay's translucent
+        # background is the wallpaper.
+        self._overlay_depth  = 0
 
         # Dynamic tiles: list of (window_id, title, AppTile)
         self._dynamic_tiles:  list[tuple[str, str, AppTile]] = []
@@ -68,7 +72,8 @@ class Desktop(QWidget):
         main = QVBoxLayout(self)
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
-        main.addWidget(self._build_topbar())
+        self._topbar = self._build_topbar()
+        main.addWidget(self._topbar)
         main.addStretch(1)
         main.addWidget(self._build_tile_bar())
 
@@ -106,6 +111,20 @@ class Desktop(QWidget):
         self.showFullScreen()
         self._restore_overlays()
         self.activateWindow()
+
+    def enter_overlay_mode(self) -> None:
+        """Hide topbar and tile bar so an overlay shows only the wallpaper."""
+        self._overlay_depth += 1
+        if self._overlay_depth == 1:
+            self._topbar.hide()
+            self._scroll.hide()
+
+    def exit_overlay_mode(self) -> None:
+        """Restore topbar and tile bar when the last overlay closes."""
+        self._overlay_depth = max(0, self._overlay_depth - 1)
+        if self._overlay_depth == 0:
+            self._topbar.show()
+            self._scroll.show()
 
     @property
     def _active_overlays(self) -> list[BaseOverlay]:
@@ -535,6 +554,7 @@ class Desktop(QWidget):
             message=self.tr("Failed to launch application:\n{0}").format(error),
             on_confirmed=lambda: None,
             gamepad=self._gamepad,
+            parent=self,
         )
 
     def _on_app_finished(self, idx: int) -> None:
@@ -655,7 +675,7 @@ class Desktop(QWidget):
             on_confirmed=_wrap(on_confirmed),
             on_cancelled=_wrap(on_cancelled),
             gamepad=self._gamepad,
-            parent=self if self._active_context is None else None,
+            parent=self,
         )
 
     # ── Top bar actions ────────────────────────────────────────────────────
@@ -664,7 +684,7 @@ class Desktop(QWidget):
         self._action_runner.run(action_type)
 
     def _open_volume_overlay(self) -> None:
-        overlay = VolumeOverlay(self._gamepad, parent=self if self._active_context is None else None)
+        overlay = VolumeOverlay(self._gamepad, parent=self)
         self._volume_overlay = overlay
         overlay.closed.connect(self._on_volume_closed)
 

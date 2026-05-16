@@ -151,6 +151,7 @@ class VolumeOverlay(BaseOverlay):
         sound_player.play("popup_close")
         self._closed = True
         self._gamepad.pop_handler(self._handler)
+        self._notify_closed()
         self.hide()
         self.deleteLater()
         self.closed.emit()

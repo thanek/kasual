@@ -10,7 +10,6 @@ from app import Application
 from audio import sound_player
 from desktop import Desktop
 from input.gamepad_watcher import GamepadWatcher
-from overlays.home_overlay import HomeOverlay
 from system.window_manager import KWinWindowManager
 from system.system_actions import ActionDeps
 from ui.log_viewer import LogViewer
@@ -66,7 +65,6 @@ def main() -> None:
     gamepad = GamepadWatcher()
     wm = KWinWindowManager()
     desktop = Desktop(apps=apps, gamepad=gamepad, window_manager=wm)
-    overlay = HomeOverlay(gamepad=gamepad, action_deps=ActionDeps(desktop=desktop))
 
     log_viewer = LogViewer(str(log_file))
     tray = SystemTray(
@@ -78,7 +76,7 @@ def main() -> None:
     controller = Application(
         gamepad=gamepad,
         desktop=desktop,
-        overlay=overlay,
+        action_deps=ActionDeps(desktop=desktop),
         tray=tray,
         wm=wm,
     )

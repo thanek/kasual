@@ -117,6 +117,23 @@ _ACTIVATE_BY_PIDS_SCRIPT = """\
 }})();
 """
 
+# Same matching as _ACTIVATE_BY_PIDS_SCRIPT, but uses raiseWindow() instead
+# of setting activeWindow — raises in stacking order without triggering the
+# KWin "window activation" animation. Use when focus is not required (e.g.
+# gamepad input goes through our own handler stack, not system focus).
+_RAISE_BY_PIDS_SCRIPT = """\
+(function () {{
+    var pids = {pids};
+    var ws = workspace.windowList();
+    for (var i = 0; i < ws.length; i++) {{
+        if (pids.indexOf(parseInt(ws[i].pid)) !== -1) {{
+            ws[i].minimized = false;
+            workspace.raiseWindow(ws[i]);
+        }}
+    }}
+}})();
+"""
+
 _SCRIPT_TIMEOUT_MS = 5_000
 
 
@@ -279,6 +296,26 @@ class KWinWindowManager(QObject):
         if all_pids:
             script = _ACTIVATE_BY_PIDS_SCRIPT.format(pids=json.dumps(sorted(all_pids)))
             self._run_fire_and_forget(script, tag='activate_pids')
+
+    def activate_windows_for_pid_exact(self, pid: int) -> None:
+        """Activate windows owned by *pid* exactly (no descendant expansion).
+
+        Use this to force the Kasual Desktop window above a running fullscreen
+        app — Wayland focus-stealing prevention otherwise ignores Qt's
+        raise_/activateWindow when another app holds focus.
+        """
+        script = _ACTIVATE_BY_PIDS_SCRIPT.format(pids=json.dumps([pid]))
+        self._run_fire_and_forget(script, tag='activate_pid_exact')
+
+    def raise_windows_for_pid_exact(self, pid: int) -> None:
+        """Raise windows owned by *pid* exactly above other windows.
+
+        Like activate_windows_for_pid_exact but does not change focus, so KWin
+        does not play its window-activation animation. Suitable when input
+        does not depend on system focus (e.g. our gamepad handler stack).
+        """
+        script = _RAISE_BY_PIDS_SCRIPT.format(pids=json.dumps([pid]))
+        self._run_fire_and_forget(script, tag='raise_pid_exact')
 
     def window_exists(self, window_id: str) -> bool:
         return window_id in self._cache

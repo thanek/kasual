@@ -82,6 +82,7 @@ class InfoDialog(BaseOverlay):
         logger.info("InfoDialog._close()")
         self._closed = True
         self._gamepad.pop_handler(self._handler)
+        self._notify_closed()
         self.hide()
         self.deleteLater()
         return True
@@ -90,5 +91,6 @@ class InfoDialog(BaseOverlay):
         if not self._closed:
             self._closed = True
             self._gamepad.pop_handler(self._handler)
+        self._notify_closed()
         self.hide()
         self.deleteLater()

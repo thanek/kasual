@@ -16,11 +16,15 @@ class BaseOverlay(QWidget):
       - window flags (FramelessWindowHint, WindowStaysOnTopHint, Tool)
       - gamepad lifetime cycle (push/pop_handler)
       - pause() / resume() methods used by Desktop
+      - notifies Desktop (parent) about being open so it can hide its chrome
+        (topbar + tile bar) for the duration of the overlay
 
     Subclass should:
       1. Call super().__init__(gamepad, self._handle_pad, parent)
       2. Build the UI
       3. At the end of __init__ call self._show() (optionally play a sound before that)
+      4. Call self._notify_closed() inside its close path so the Desktop
+         chrome is restored.
     """
 
     def __init__(
@@ -30,10 +34,11 @@ class BaseOverlay(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._gamepad   = gamepad
-        self._handler   = handler
-        self._closed    = False
-        self._is_child  = parent is not None
+        self._gamepad           = gamepad
+        self._handler           = handler
+        self._closed            = False
+        self._is_child          = parent is not None
+        self._chrome_hidden     = False
 
         if self._is_child:
             # Render inside the parent's Wayland surface — no new xdg_toplevel.
@@ -53,6 +58,7 @@ class BaseOverlay(QWidget):
         """Registers the gamepad handler and displays the overlay."""
         self._gamepad.push_handler(self._handler)
         if self._is_child:
+            self._notify_opened()
             self.setGeometry(self.parent().rect())
             self.show()
             self.raise_()
@@ -71,3 +77,21 @@ class BaseOverlay(QWidget):
         """Restores the overlay after a pause."""
         if not self._closed:
             self._show()
+
+    def _notify_opened(self) -> None:
+        """Tell the Desktop parent to hide its chrome while we're shown."""
+        if self._chrome_hidden:
+            return
+        parent = self.parent()
+        if hasattr(parent, "enter_overlay_mode"):
+            parent.enter_overlay_mode()
+            self._chrome_hidden = True
+
+    def _notify_closed(self) -> None:
+        """Tell the Desktop parent it may show its chrome again."""
+        if not self._chrome_hidden:
+            return
+        parent = self.parent()
+        if hasattr(parent, "exit_overlay_mode"):
+            parent.exit_overlay_mode()
+        self._chrome_hidden = False
