@@ -65,10 +65,18 @@ class Application:
         if running_app is not None or not self._desktop.isVisible():
             if not self._desktop.isVisible():
                 self._desktop.showFullScreen()
-            # Raise (no focus change) — avoids the KWin window-activation
-            # animation that would otherwise play when an app was on top.
-            # Gamepad input goes through our own handler stack, not system
-            # focus, so giving up keyboard focus here is fine.
+
+            # Minimize the foreground app — KWin then auto-promotes Desktop
+            # to the top with no window-activation animation. raise alone
+            # is unreliable when the app holds the topmost slot (e.g. after
+            # entering a folder in Pliki the surface becomes fullscreen and
+            # KWin refuses to stack anything above it).
+            if running_app is not None and running_app['type'] == 'app':
+                pid = self._desktop.app_manager.running_pid(running_app['id'])
+                if pid is not None:
+                    self._wm.minimize_windows_for_pids({pid})
+
+            # Fallback for 'dyn' windows / pause resume: raise our window.
             self._wm.raise_windows_for_pid_exact(os.getpid())
 
         self._overlay = HomeOverlay(self._gamepad, self._action_deps, parent=self._desktop)
@@ -76,6 +84,7 @@ class Application:
 
         if running_app is None:
             items = HomeOverlay.static_items()
+            on_cancel = self._desktop.show_desktop
         else:
             title     = running_app['name']
             close_cb  = lambda app=running_app: self._desktop.request_close_app(app)
@@ -87,7 +96,8 @@ class Application:
                 {"label": "  " + QCoreApplication.translate("Kasual", "Close {0}").format(label),      "icon": "fa5s.times-circle", "callback": close_cb},
                 {"label": "  " + QCoreApplication.translate("Kasual", "Return to Desktop"),            "icon": "fa5s.home",         "callback": self._desktop.show_desktop},
             ]
-        self._overlay.show_overlay(items=items, on_cancel=self._desktop.show_desktop)
+            on_cancel = cancel_cb
+        self._overlay.show_overlay(items=items, on_cancel=on_cancel)
 
     def _on_connected_changed(self, connected: bool) -> None:
         """Gamepad connected / disconnected: synchronizes all components."""

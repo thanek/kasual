@@ -46,18 +46,15 @@ class HomeOverlay(QWidget):
 
     @staticmethod
     def static_items() -> list[MenuItem]:
-        volume_item = {"label": ACTIONS["volume"]["label"], "icon": ACTIONS["volume"]["icon"], "action": "volume"}
-        rest = [
-            {"label": spec["label"], "icon": spec["icon"], "action": action_type}
-            for action_type, spec in ACTIONS.items()
-            if action_type != "volume"
-        ]
         cancel_item: MenuItem = {
             "label": QT_TRANSLATE_NOOP("Kasual", "Return to Desktop"),
             "icon": "fa5s.times",
             "action": "cancel",
         }
-        return [volume_item, cancel_item] + rest
+        return [cancel_item] + [
+            {"label": spec["label"], "icon": spec["icon"], "action": action_type}
+            for action_type, spec in ACTIONS.items()
+        ]
 
     def __init__(
         self,
