@@ -71,3 +71,6 @@ class AppTile(QWidget):
             "background-color: #d08770; border-radius: 7px; border: 2px solid #0b140e;"
         )
         self._dot.show()
+
+    def is_closing(self) -> bool:
+        return self._closing

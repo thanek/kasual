@@ -525,7 +525,13 @@ class Desktop(QWidget):
         n_static = len(self._tiles)
 
         if idx < n_static:
-            # Static tile (configured application)
+            # Static tile (configured application).
+            # Ignore clicks while the app is shutting down — proc.poll() still
+            # reports it as running, so restore_app would hide Desktop and try
+            # to activate a window that's about to disappear, leaving the
+            # screen blank with an empty gamepad handler stack.
+            if self._tiles[idx].is_closing():
+                return
             self._active_context = {'type': 'app', 'id': idx, 'name': self._apps[idx]['name']}
             if self._app_manager.is_running(idx):
                 logger.info("Restoring application %d", idx)
@@ -630,6 +636,10 @@ class Desktop(QWidget):
         self._gamepad.push_handler(self._handle_pad)
         self.showFullScreen()
         self.activateWindow()
+        # Wayland focus-stealing prevention can ignore Qt's activateWindow
+        # when another app (still dying) holds focus. Force Desktop to the
+        # top of the stack via KWin scripting.
+        self._wm.raise_windows_for_pid_exact(os.getpid())
 
     def _arrange_windows(self, activate_pid: int | None = None) -> None:
         """Activate windows for activate_pid and minimize all other running apps."""
